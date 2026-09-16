@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vidigen — Developer Dashboard</title>
+<!--
+  Deliberately a plain, self-contained HTML+JS file (no CDN scripts, no build step) served
+  directly by the gateway at GET /admin — NOT part of the React app bundle, and never
+  shipped inside the Android app. That separation is the actual security boundary: this
+  page can only do anything once it has a real admin's Supabase access token, checked
+  server-side on every single call via require_admin() in server.py — nothing here is
+  trusted just because it rendered.
+-->
+<style>
+  :root { --bg:#0d0e13; --panel:#15161e; --panel2:#1b1d28; --border:rgba(255,255,255,.09);
+          --text:#eef0f6; --dim:rgba(238,240,246,.6); --accent:#4f7cff; --ok:#4ade80; --bad:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+  header b { font-size:15px; }
+  header span { font-size:11px; color:var(--dim); border:1px solid var(--border); padding:3px 8px; border-radius:99px; }
+  main { padding: 20px; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .card h2 { margin:0 0 10px; font-size:14px; }
+  .card p.desc { margin:0 0 12px; font-size:12px; color:var(--dim); line-height:1.5; }
+  input, textarea, select { background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:8px 10px; font:inherit; font-size:12px; }
+  input[type=password] { width:280px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:7px; padding:8px 14px;
+    font-weight:700; font-size:12px; cursor:pointer; }
+  button.secondary { background:var(--panel2); border:1px solid var(--border); color:var(--text); }
+  button.danger { background:transparent; border:1px solid var(--bad); color:var(--bad); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); }
+  th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid var(--border); }
+  .pill.ok { color:var(--ok); border-color:rgba(74,222,128,.35); }
+  .pill.bad { color:var(--bad); border-color:rgba(248,113,113,.35); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  pre { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px;
+    font-size:11px; overflow:auto; max-height:260px; white-space:pre-wrap; word-break:break-word; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:760px) { .grid2 { grid-template-columns:1fr; } }
+  #gate { display:flex; align-items:center; justify-content:center; min-height:100vh; flex-direction:column; gap:14px; }
+  #gate .card { width:min(420px,92vw); }
+  .muted { color:var(--dim); font-size:11px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="card">
+    <h2>Vidigen Developer Dashboard</h2>
+    <p class="desc">Paste a Supabase access token for an account listed in <code>admin_users</code>.
+      Every action below is re-checked server-side on each call — this page has no privileges of its own.</p>
+    <div class="row">
+      <input id="tokenInput" type="password" placeholder="Supabase access token">
+      <input id="gatewayInput" type="text" placeholder="Gateway URL (e.g. http://10.0.2.2:8000)" style="width:280px">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button onclick="connect()">Connect</button>
+      <span class="muted">Stored only in this tab's sessionStorage — cleared when you close it.</span>
+    </div>
+    <p id="gateError" class="muted" style="color:var(--bad)"></p>
+  </div>
+</div>
+
+<div id="dashboard" class="hidden">
+  <header>
+    <b>Vidigen — Developer Dashboard</b>
+    <span id="whoami"></span>
+    <span style="margin-left:auto"></span>
+    <button class="secondary" onclick="disconnect()">Disconnect</button>
+  </header>
+  <main>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Provider Health</h2>
+        <p class="desc">Reuses the same configuration checks as the public <code>/api/providers</code>, plus an actual Supabase round-trip — not just "is the env var set".</p>
+        <div id="healthOut" class="muted">Loading…</div>
+        <button class="secondary" style="margin-top:10px" onclick="loadHealth()">Refresh</button>
+      </div>
+      <div class="card">
+        <h2>Version</h2>
+        <div id="versionOut" class="muted">Loading…</div>
+        <button class="secondary" style="margin-top:10px" onclick="loadVersion()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Maintenance Mode</h2>
+      <p class="desc">Blocks all public <code>/api/*</code> traffic with a 503 while on. Admin routes stay reachable so you can turn it back off. Takes up to 10s to apply everywhere (short-TTL cache, not a Supabase call on every request).</p>
+      <div class="row">
+        <span id="maintPill" class="pill">checking…</span>
+        <button id="maintOnBtn" onclick="setMaintenance(true)">Turn ON</button>
+        <button id="maintOffBtn" class="secondary" onclick="setMaintenance(false)">Turn OFF</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Feature Flags</h2>
+      <p class="desc">Any signed-in user's app can read these via <code>/api/flags</code>; only admins can write them.</p>
+      <table id="flagsTable"><thead><tr><th>Key</th><th>Enabled</th><th>Description</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="row" style="margin-top:12px">
+        <input id="newFlagKey" placeholder="new_flag_key">
+        <input id="newFlagDesc" placeholder="Description" style="width:260px">
+        <button onclick="createFlag()">Add flag (off)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>AI Editor Testing Lab</h2>
+      <p class="desc">Shows Groq's raw response AND what <code>sanitize_ops()</code> actually kept — the whole point is seeing what gets filtered, not just the final safe result.</p>
+      <label class="muted">Command</label><br>
+      <input id="testCommand" style="width:100%" placeholder="e.g. delete clip a and speed up clip b to 2x">
+      <p class="muted" style="margin:10px 0 4px">Test payload clips (edit the JSON ids when validating sanitizer behavior):</p>
+      <textarea id="testClips" style="width:100%;height:70px">[{"id":"a","title":"Intro","track":"Video","duration":5},{"id":"b","title":"Main","track":"Video","duration":10}]</textarea>
+      <div class="row" style="margin-top:10px"><button onclick="runTest()">Run test</button></div>
+      <div id="testOut"></div>
+    </div>
+
+    <div class="card">
+      <h2>AI Model Control</h2>
+      <p class="desc">Read by the gateway on every Groq call — a missing entry just falls back to the hardcoded default, so this never blocks editing if unset.</p>
+      <div class="row">
+        <input id="cfgModel" placeholder="groq_edit_model (e.g. llama-3.3-70b-versatile)" style="width:280px">
+        <button class="secondary" onclick="setConfig('groq_edit_model', document.getElementById('cfgModel').value, false)">Set</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="cfgTemp" placeholder="groq_edit_temperature (0-2)" style="width:280px">
+        <button class="secondary" onclick="setConfig('groq_edit_temperature', parseFloat(document.getElementById('cfgTemp').value), true)">Set</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="cfgFallback" placeholder="groq_edit_fallback_model (optional)" style="width:280px">
+        <button class="secondary" onclick="setConfig('groq_edit_fallback_model', document.getElementById('cfgFallback').value, false)">Set</button>
+      </div>
+      <div id="configOut" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Prompt Management</h2>
+      <p class="desc">Versioned. Rollback = activating an older version — nothing is ever deleted.</p>
+      <div class="row">
+        <select id="promptKey"><option value="groq_edit_planner">groq_edit_planner</option></select>
+        <button class="secondary" onclick="loadPrompts()">Load versions</button>
+      </div>
+      <table id="promptsTable" style="margin-top:10px"><thead><tr><th>Version</th><th>Active</th><th>Created</th><th></th></tr></thead><tbody></tbody></table>
+      <p class="muted" style="margin:12px 0 4px">Create a new version:</p>
+      <textarea id="newPromptContent" style="width:100%;height:80px" placeholder="New system prompt text…"></textarea>
+      <div class="row" style="margin-top:8px"><button onclick="createPromptVersion()">Save as new version</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Live Developer Logs</h2>
+      <p class="desc">Real-time via Server-Sent Events. In-memory only — restarting the gateway clears history, by design, not by accident.</p>
+      <div class="row"><button class="secondary" onclick="toggleLogStream()" id="logStreamBtn">Start streaming</button></div>
+      <pre id="logsOut" style="margin-top:10px;height:220px"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Audit Log</h2>
+      <p class="desc">Every admin write action, recorded automatically server-side — not something an admin action can skip.</p>
+      <button class="secondary" onclick="loadAuditLog()">Load recent actions</button>
+      <table id="auditTable" style="margin-top:10px"><thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2>Two-Factor Authentication</h2>
+      <p class="desc">TOTP via an authenticator app. Mandatory for production admin access. Enroll this account before using the control panel.</p>
+      <div id="twofaEnroll" class="row"><button onclick="enroll2fa()">Enroll 2FA for this account</button></div>
+      <div id="twofaEnrollOut" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:14px">
+        <input id="twofaCode" placeholder="6-digit code" maxlength="6" style="width:120px">
+        <button onclick="verify2fa()">Verify &amp; start session</button>
+      </div>
+      <p id="twofaStatus" class="muted" style="margin-top:8px"></p>
+    </div>
+
+    <div class="card">
+      <h2>Automated Testing</h2>
+      <p class="desc">Runs a fixed set of whitelisted test commands only — never an arbitrary command, by design.</p>
+      <div id="testSuiteButtons" class="row"></div>
+      <pre id="testRunOut" style="margin-top:10px"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Billing &amp; Subscription Control</h2>
+      <p class="desc">Adjust published prices, monthly credits and entitlements. Changes are audited; Paystack recurring-plan prices are synchronized when the Paystack secret is configured.</p>
+      <table id="billingTable"><thead><tr><th>Plan</th><th>Price (GHS)</th><th>Credits</th><th>Storage GB</th><th>Watermark</th><th>Commercial</th><th>Priority</th><th></th></tr></thead><tbody></tbody></table>
+      <p class="muted" style="margin-top:10px">AI model credit weights are application consumption units, not provider prices.</p>
+      <div class="row"><input id="modelCostKey" placeholder="Model key (e.g. bytedance/seedance-2.0)" style="width:300px"><input id="modelCostValue" placeholder="Credits / 5 seconds" type="number" min="1" style="width:170px"><button class="secondary" onclick="setModelCost()">Set model cost</button></div>
+      <pre id="billingOut" style="margin-top:10px"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Production Release Gate</h2>
+      <p class="desc">Runs only checks the gateway can verify directly. Green means gateway prerequisites are present; it does not replace live-provider or Android release verification.</p>
+      <button class="secondary" onclick="loadReleaseReadiness()">Run release check</button>
+      <pre id="releaseOut" style="margin-top:10px"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Users</h2>
+      <p class="desc">Deleting a user also attempts server-side R2 cleanup. The deletion is refused unless the cleanup step completes or reports that no R2 storage is configured.</p>
+      <button class="secondary" onclick="loadUsers()">Load users</button>
+      <table id="usersTable" style="margin-top:10px"><thead><tr><th>Email</th><th>UID</th><th>Created</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+
+  </main>
+</div>
+
+<script>
+let TOKEN = sessionStorage.getItem('vidigen_admin_token') || '';
+let GATEWAY = sessionStorage.getItem('vidigen_admin_gateway') || '';
+let TWOFA_SESSION = sessionStorage.getItem('vidigen_admin_2fa_session') || '';
+
+async function api(path, opts={}) {
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', ...(opts.headers||{}) };
+  if (TWOFA_SESSION) headers['X-Admin-2FA-Session'] = TWOFA_SESSION;
+  const res = await fetch(GATEWAY + path, { ...opts, headers });
+  if (!res.ok) { const t = await res.text(); throw new Error(res.status + ': ' + t); }
+  return res.json();
+}
+
+function connect() {
+  TOKEN = document.getElementById('tokenInput').value.trim();
+  GATEWAY = document.getElementById('gatewayInput').value.trim().replace(/\/$/, '');
+  if (!TOKEN || !GATEWAY) { document.getElementById('gateError').textContent = 'Both fields are required.'; return; }
+  sessionStorage.setItem('vidigen_admin_token', TOKEN);
+  sessionStorage.setItem('vidigen_admin_gateway', GATEWAY);
+  boot();
+}
+function disconnect() {
+  sessionStorage.removeItem('vidigen_admin_token'); sessionStorage.removeItem('vidigen_admin_gateway');
+  location.reload();
+}
+
+async function boot() {
+  try {
+    await loadHealth(); // used as the "does this token actually work" check
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('whoami').textContent = 'connected';
+    loadVersion(); loadFlags(); loadTestSuites(); loadBilling();
+  } catch (e) {
+    document.getElementById('gateError').textContent = 'Could not verify admin access: ' + e.message;
+  }
+}
+
+async function loadHealth() {
+  const el = document.getElementById('healthOut');
+  el.textContent = 'Loading…';
+  try {
+    const h = await api('/api/admin/health');
+    el.innerHTML = Object.entries(h).map(([k,v]) =>
+      `<div class="row" style="margin:4px 0"><span class="pill ${v===true?'ok':v===false?'bad':''}">${k}</span><span>${typeof v==='boolean'?(v?'✓':'✗'):v}</span></div>`
+    ).join('');
+  } catch (e) { el.textContent = 'Error: ' + e.message; throw e; }
+}
+async function loadVersion() {
+  const el = document.getElementById('versionOut');
+  try {
+    const v = await api('/api/admin/version');
+    el.innerHTML = `<div>App version: <b>${v.app_version}</b></div><div>Gateway routes: ${v.gateway_routes}</div><div>server.py last modified: ${new Date(v.python_gateway_file_mtime*1000).toLocaleString()}</div>`;
+  } catch (e) { el.textContent = 'Error: ' + e.message; }
+}
+async function loadFlags() {
+  const { flags } = await api('/api/admin/flags');
+  const tbody = document.querySelector('#flagsTable tbody');
+  tbody.innerHTML = flags.map(f => `
+    <tr>
+      <td><code>${f.key}</code></td>
+      <td><span class="pill ${f.enabled?'ok':'bad'}">${f.enabled?'ON':'OFF'}</span></td>
+      <td class="muted">${f.description||''}</td>
+      <td><button class="secondary" onclick="toggleFlag('${f.key}', ${!f.enabled})">Turn ${f.enabled?'OFF':'ON'}</button></td>
+    </tr>`).join('');
+  const maint = flags.find(f => f.key === 'maintenance_mode');
+  const pill = document.getElementById('maintPill');
+  pill.className = 'pill ' + (maint?.enabled ? 'bad' : 'ok');
+  pill.textContent = maint?.enabled ? 'MAINTENANCE MODE ON' : 'Public access normal';
+}
+async function toggleFlag(key, enabled) {
+  await api('/api/admin/flags', { method:'POST', body: JSON.stringify({ key, enabled }) });
+  loadFlags();
+}
+async function createFlag() {
+  const key = document.getElementById('newFlagKey').value.trim();
+  const description = document.getElementById('newFlagDesc').value.trim();
+  if (!key) return;
+  await api('/api/admin/flags', { method:'POST', body: JSON.stringify({ key, enabled:false, description }) });
+  document.getElementById('newFlagKey').value=''; document.getElementById('newFlagDesc').value='';
+  loadFlags();
+}
+async function setMaintenance(on) {
+  await api('/api/admin/flags', { method:'POST', body: JSON.stringify({ key:'maintenance_mode', enabled:on, description:'Blocks public API traffic while on.' }) });
+  loadFlags();
+}
+async function runTest() {
+  const out = document.getElementById('testOut');
+  out.innerHTML = '<p class="muted">Running…</p>';
+  try {
+    const clips = JSON.parse(document.getElementById('testClips').value);
+    const command = document.getElementById('testCommand').value;
+    const r = await api('/api/admin/ai-editor-test', { method:'POST', body: JSON.stringify({ command, clips }) });
+    out.innerHTML = `
+      <p class="row"><span class="pill ${r.groq_ok?'ok':'bad'}">${r.groq_ok?'Groq responded':'Groq did not respond'}</span>${r.groq_failure_reason?`<span class="muted">${r.groq_failure_reason}</span>`:''}</p>
+      <p class="muted">Raw LLM response:</p><pre>${r.raw_llm_response_text ? escapeHtml(r.raw_llm_response_text) : '(none)'}</pre>
+      <p class="muted">Raw operations before sanitization:</p><pre>${JSON.stringify(r.raw_operations_before_sanitization,null,2)}</pre>
+      <p class="muted">Sanitized operations (what would actually be applied)${r.operations_dropped_by_sanitizer!=null?` — ${r.operations_dropped_by_sanitizer} dropped`:''}:</p><pre>${JSON.stringify(r.sanitized_operations,null,2)}</pre>
+    `;
+  } catch (e) { out.innerHTML = `<p style="color:var(--bad)">Error: ${e.message}</p>`; }
+}
+function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function setConfig(key, value, isNumber) {
+  if (isNumber && Number.isNaN(value)) { document.getElementById('configOut').textContent = 'Enter a valid number.'; return; }
+  if (!isNumber && !value) return;
+  await api('/api/admin/remote-config', { method:'POST', body: JSON.stringify({ key, value }) });
+  document.getElementById('configOut').textContent = `Set ${key} = ${JSON.stringify(value)}`;
+}
+
+async function loadPrompts() {
+  const key = document.getElementById('promptKey').value;
+  const { versions } = await api('/api/admin/prompts/' + key);
+  document.querySelector('#promptsTable tbody').innerHTML = versions.map(v => `
+    <tr>
+      <td>v${v.version}</td>
+      <td><span class="pill ${v.is_active?'ok':''}">${v.is_active?'ACTIVE':''}</span></td>
+      <td class="muted">${new Date(v.created_at).toLocaleString()}</td>
+      <td>${!v.is_active?`<button class="secondary" onclick="activatePrompt('${key}', ${v.version})">Activate (rollback to this)</button>`:''}</td>
+    </tr>`).join('');
+}
+async function createPromptVersion() {
+  const key = document.getElementById('promptKey').value;
+  const content = document.getElementById('newPromptContent').value.trim();
+  if (!content) return;
+  await api('/api/admin/prompts', { method:'POST', body: JSON.stringify({ prompt_key: key, content }) });
+  document.getElementById('newPromptContent').value = '';
+  loadPrompts();
+}
+async function activatePrompt(key, version) {
+  await api(`/api/admin/prompts/${key}/activate`, { method:'POST', body: JSON.stringify({ version }) });
+  loadPrompts();
+}
+
+let logStream = null;
+function toggleLogStream() {
+  const btn = document.getElementById('logStreamBtn');
+  const out = document.getElementById('logsOut');
+  if (logStream) { logStream.close(); logStream = null; btn.textContent = 'Start streaming'; return; }
+  const url = new URL(GATEWAY + '/api/admin/logs/stream');
+  // EventSource can't send an Authorization header, so the token rides in a query param
+  // for this one connection only — same trust boundary as the header everywhere else,
+  // just a different transport, since SSE doesn't support custom request headers.
+  url.searchParams.set('token', TOKEN);
+  logStream = new EventSource(url);
+  logStream.onmessage = (e) => { out.textContent += e.data + '\n'; out.scrollTop = out.scrollHeight; };
+  btn.textContent = 'Stop streaming';
+}
+
+async function loadAuditLog() {
+  const { entries } = await api('/api/admin/audit-log');
+  document.querySelector('#auditTable tbody').innerHTML = entries.map(e => `
+    <tr>
+      <td class="muted">${new Date(e.created_at).toLocaleString()}</td>
+      <td><code>${e.admin_uid.slice(0,8)}…</code></td>
+      <td>${e.action}</td>
+      <td class="muted">${JSON.stringify(e.detail)}</td>
+    </tr>`).join('');
+}
+
+async function enroll2fa() {
+  const out = document.getElementById('twofaEnrollOut');
+  try {
+    const r = await api('/api/admin/2fa/enroll', { method:'POST' });
+    out.innerHTML = `
+      <p class="muted">Scan this into your authenticator app (Google Authenticator, 1Password, etc.), or enter the secret manually. This is shown ONCE — it isn't retrievable again after you leave this page.</p>
+      <p><b>Secret:</b> <code>${r.secret}</code></p>
+      <p class="muted" style="word-break:break-all">${r.provisioning_uri}</p>`;
+  } catch (e) {
+    out.innerHTML = `<p style="color:var(--bad)">${e.message.includes('409') ? 'Already enrolled for this account.' : 'Error: '+e.message}</p>`;
+  }
+}
+async function verify2fa() {
+  const code = document.getElementById('twofaCode').value.trim();
+  const status = document.getElementById('twofaStatus');
+  try {
+    const r = await fetch(GATEWAY + '/api/admin/2fa/verify', {
+      method:'POST', headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    TWOFA_SESSION = data.session_token;
+    sessionStorage.setItem('vidigen_admin_2fa_session', TWOFA_SESSION);
+    status.textContent = `2FA session active until ${new Date(data.expires_at).toLocaleTimeString()}.`;
+    status.style.color = 'var(--ok)';
+  } catch (e) {
+    status.textContent = 'Verification failed: ' + e.message;
+    status.style.color = 'var(--bad)';
+  }
+}
+
+async function loadTestSuites() {
+  const { available } = await api('/api/admin/tests');
+  document.getElementById('testSuiteButtons').innerHTML = available.map(s =>
+    `<button class="secondary" onclick="runTestSuite('${s}')">${s}</button>`).join('');
+}
+async function runTestSuite(suite) {
+  const out = document.getElementById('testRunOut');
+  out.textContent = `Running ${suite}…`;
+  try {
+    const r = await api('/api/admin/tests/run', { method:'POST', body: JSON.stringify({ suite }) });
+    out.innerHTML = `<span class="pill ${r.passed?'ok':'bad'}">${r.passed?'PASSED':'FAILED'} (exit ${r.exit_code})</span>\n\n${escapeHtml(r.stdout)}${r.stderr?'\n\nSTDERR:\n'+escapeHtml(r.stderr):''}`;
+  } catch (e) { out.textContent = 'Error: ' + e.message; }
+}
+
+async function loadBilling(){
+  const out=document.getElementById('billingOut');
+  try{const r=await api('/api/billing/plans'); const body=document.querySelector('#billingTable tbody'); body.innerHTML=''; (r.plans||[]).forEach(p=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${p.name}</td><td><input id="price-${p.slug}" value="${p.price_ghs}" type="number" min="0" step="0.01" style="width:110px"></td><td><input id="credits-${p.slug}" value="${p.monthly_credits}" type="number" min="0" style="width:110px"></td><td><input id="storage-${p.slug}" value="${p.storage_gb}" type="number" min="0" style="width:90px"></td><td><input id="water-${p.slug}" type="checkbox" ${p.watermark?'checked':''}></td><td><input id="commercial-${p.slug}" type="checkbox" ${p.commercial_use?'checked':''}></td><td><input id="priority-${p.slug}" type="checkbox" ${p.priority?'checked':''}></td><td><button onclick="savePlan('${p.slug}')">Save</button></td>`; body.appendChild(tr)});}catch(e){out.textContent='Error: '+e.message}
+}
+async function savePlan(slug){
+  const out=document.getElementById('billingOut');
+  try{const payload={price_ghs:+document.getElementById('price-'+slug).value,monthly_credits:+document.getElementById('credits-'+slug).value,storage_gb:+document.getElementById('storage-'+slug).value,watermark:document.getElementById('water-'+slug).checked,commercial_use:document.getElementById('commercial-'+slug).checked,priority:document.getElementById('priority-'+slug).checked}; const r=await api('/api/billing/admin/plans/'+encodeURIComponent(slug),{method:'PATCH',body:JSON.stringify(payload)}); out.textContent=JSON.stringify(r,null,2);}catch(e){out.textContent='Error: '+e.message}
+}
+async function setModelCost(){
+  const out=document.getElementById('billingOut');
+  try{const model=document.getElementById('modelCostKey').value.trim(); const credits=+document.getElementById('modelCostValue').value; const r=await api('/api/billing/admin/model-costs',{method:'POST',body:JSON.stringify({model_key:model,operation:'video',credits_per_5s:credits})}); out.textContent=JSON.stringify(r,null,2);}catch(e){out.textContent='Error: '+e.message}
+}
+
+async function loadReleaseReadiness(){
+  const out=document.getElementById('releaseOut'); out.textContent='Checking…';
+  try{const r=await api('/api/admin/release-readiness');out.textContent=JSON.stringify(r,null,2)}catch(e){out.textContent='Error: '+e.message}
+}
+
+async function loadUsers() {
+  const { users } = await api('/api/admin/users');
+  document.querySelector('#usersTable tbody').innerHTML = users.map(u => `
+    <tr>
+      <td>${u.email || '(no email)'}</td>
+      <td><code>${u.id.slice(0,8)}…</code></td>
+      <td class="muted">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td><button class="danger" onclick="deleteUser('${u.id}')">Delete</button></td>
+    </tr>`).join('');
+}
+async function deleteUser(uid) {
+  if (!confirm('Delete this user? This does NOT clean up their R2 media. This cannot be undone.')) return;
+  await api('/api/admin/users/' + uid, { method:'DELETE' });
+  loadUsers();
+}
+
+if (TOKEN && GATEWAY) boot();
+</script>
+</body>
+</html>

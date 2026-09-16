@@ -1,0 +1,10 @@
+{
+  "6": {
+    "inputs": {
+      "text": "{{PROMPT}}",
+      "clip": ["4", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive Prompt"}
+  }
+}

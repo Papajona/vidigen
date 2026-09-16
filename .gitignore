@@ -1,0 +1,43 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+!.env.ai-studio.example
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Logs
+*.log
+
+# Android / Gradle
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/.cxx/
+
+# IDE / OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Temporary / generated
+tmp/
+temp/
+*.tmp
+
+# Runtime agent state
+gateway/data/agent_memory.json

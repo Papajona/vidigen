@@ -1,0 +1,29 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace "com.vidigen.renderengine"
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 35
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    // Media3 Transformer version pinned deliberately — this API has changed release to
+    // release (see the Media3 changelog); check developer.android.com/jetpack/androidx/releases/media3
+    // for the current version before bumping, rather than taking the latest blindly.
+    implementation "androidx.media3:media3-transformer:1.5.1"
+    implementation "androidx.media3:media3-common:1.5.1"
+    implementation "androidx.media3:media3-effect:1.5.1"
+}
