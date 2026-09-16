@@ -1,0 +1,48 @@
+# OPTIONAL. Cloudflare Pages can also deploy straight from GitHub with zero YAML — connect
+# the repo in the Pages dashboard, set the build command/output dir once, done. Use THIS
+# workflow instead only if you want the frontend build gated on `npm test` first, or want
+# every secret centralized in GitHub rather than split between GitHub and Cloudflare. If
+# you use this file, disable the dashboard's own build step (set it to "no build" /
+# direct-upload) so the two don't both try to deploy on every push. See DEPLOYMENT.md.
+name: Deploy frontend to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.js"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          # Point the built frontend at the Cloud Run gateway's public URL/custom domain.
+          VITE_VIDIGEN_GATEWAY_URL: ${{ secrets.VITE_VIDIGEN_GATEWAY_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=vidigen-ai --branch=main

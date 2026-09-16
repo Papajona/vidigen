@@ -1,0 +1,16 @@
+# Only gateway/ actually ships in the image — everything else here just keeps the
+# build context small and the Docker layer cache from busting on unrelated changes.
+node_modules
+android
+dist
+.git
+.github
+tests
+docs
+*.md
+__pycache__
+*.pyc
+.pytest_cache
+.env
+.env.*
+!gateway/requirements.txt
