@@ -36,15 +36,35 @@ const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}cat
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
 let _onUnauthorizedHandler = null;
+const DEFAULT_GATEWAY_FALLBACK='https://vidigen-gateway-8907342947.us-central1.run.app';
 async function gatewayFetch(base,path,options={},token=''){
  const headers={...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers||{})};
  if(token) headers.Authorization=`Bearer ${token}`;
- const r=await fetch(`${base.replace(/\/$/,'')}${path}`,{...options,headers});
+ const primary=base.replace(/\/$/,'');
+ const fallback=(import.meta.env.VITE_VIDIGEN_GATEWAY_FALLBACK_URL||DEFAULT_GATEWAY_FALLBACK).replace(/\/$/,'');
+ let r;
+ try{
+   r=await fetch(`${primary}${path}`,{...options,headers});
+ }catch(primaryError){
+   if(primary!==fallback){
+     r=await fetch(`${fallback}${path}`,{...options,headers});
+     base=fallback;
+   }else throw primaryError;
+ }
  // Only treat this as "your session expired" when a token was actually sent and rejected —
  // not for calls made with no token at all (some dev/local-gateway paths are intentionally
  // unauthenticated), and guarded against firing repeatedly for every in-flight request when
  // a session has already expired, not just the first one to notice.
  if(r.status===401 && token && _onUnauthorizedHandler) _onUnauthorizedHandler();
+ if(!r.ok){
+   // A stale/unverified custom API hostname should not strand the live frontend while the
+   // canonical Cloud Run HTTPS endpoint is healthy. Only transport/server-side failures
+   // fall back; authentication and client errors remain authoritative on the primary host.
+   if(primary!==fallback && r.status>=500){
+     r=await fetch(`${fallback}${path}`,{...options,headers});
+     base=fallback;
+   }
+ }
  if(!r.ok){let m=`Gateway HTTP ${r.status}`;try{const j=await r.json();m=j.detail||j.error||m}catch{}throw new Error(m)}
  return r;
 }
