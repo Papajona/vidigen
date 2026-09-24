@@ -35,11 +35,9 @@ jobs:
 
       - name: Validate production configuration
         env:
-          VITE_VIDIGEN_GATEWAY_URL: ${{ secrets.VITE_VIDIGEN_GATEWAY_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          test -n "$VITE_VIDIGEN_GATEWAY_URL" || { echo "::error::Missing VITE_VIDIGEN_GATEWAY_URL"; exit 1; }
           test -n "$VITE_SUPABASE_URL" || { echo "::error::Missing VITE_SUPABASE_URL"; exit 1; }
           test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::Missing VITE_SUPABASE_ANON_KEY"; exit 1; }
 
@@ -48,7 +46,6 @@ jobs:
 
       - name: Build production frontend
         env:
-          VITE_VIDIGEN_GATEWAY_URL: ${{ secrets.VITE_VIDIGEN_GATEWAY_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
