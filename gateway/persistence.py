@@ -34,20 +34,15 @@ async def get_job(job_id,user_id=None):
     return rows[0] if rows else None
 
 async def get_job_by_idempotency_key(user_id: str, idempotency_key: str) -> dict | None:
-    """Looks the key up inside the existing `request` jsonb column (PostgREST's `->>`
-    path operator) rather than adding a dedicated column/migration for it — idempotencyKey
-    is already stored there as part of the generation request payload on every job. Scoped
-    to user_id so two different users can't collide on the same client-chosen key. No
-    unique index backs this (see the caller's note on the narrow race that remains)."""
+    """Find an existing generation by its user-scoped idempotency key."""
     if not idempotency_key:
         return None
     rows = await sb_request('GET', 'generation_jobs', params={
         'user_id': f'eq.{user_id}',
-        'request->>idempotencyKey': f'eq.{idempotency_key}',
-        'select': '*', 'order': 'created_at.desc', 'limit': '1',
+        'idempotency_key': f'eq.{idempotency_key}',
+        'select': '*', 'limit': '1',
     })
     return rows[0] if rows else None
-
 async def create_agent_run(run_id, user_id, goal, status, plan=None, output=None, error=None):
     if not enabled(): return
     await sb_request('POST','agent_runs',{'id':run_id,'user_id':user_id,'goal':goal,'status':status,'plan':plan or [],'output':output,'error':error})
