@@ -1,6 +1,10 @@
 # Frontend deployment for Vidigen AI
 name: Deploy frontend to Cloudflare Worker
 
+concurrency:
+  group: frontend-production-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
