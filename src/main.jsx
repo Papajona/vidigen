@@ -218,13 +218,11 @@ function App(){
  useEffect(()=>{if(activeClip)setEditor({...DEFAULT_CLIP,...activeClip});},[activeId]); useEffect(()=>{const onKeyDown=e=>{const tag=e.target?.tagName?.toLowerCase();const editing=tag==='input'||tag==='textarea'||tag==='select';const mod=e.ctrlKey||e.metaKey;if(mod&&e.key==='Enter'){e.preventDefault();if(!generating)generate();return}if(mod&&!editing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if(mod&&!editing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(e.key==='/'&&!editing){e.preventDefault();document.querySelector('.prompt')?.focus();}};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[generating,undoStack.length,redoStack.length]);
 
  useEffect(()=>{let alive=true;(async()=>{try{
-   // Use the same-origin Worker probe for the status indicator. The Worker checks the
-   // real Cloud Run /healthz endpoint, eliminating browser CORS/preflight as a source
-   // of false "Offline" states.
-   let h=await fetch(`/__gateway_health?probe=${Date.now()}`,{cache:'no-store'});
-   // If the custom-domain edge is stale, probe the same deployed Worker directly.
+   // Check the verified production Cloud Run gateway directly. This removes the Worker
+   // custom-domain route from the connection indicator and avoids browser preflight.
+   let h=await fetch(`https://vidigen-gateway-xvpegaghzq-uc.a.run.app/healthz?probe=${Date.now()}`,{cache:'no-store'});
    if(!h.ok){
-     try{h=await fetch(`https://vidigen-ai.affuljona.workers.dev/__gateway_health?probe=${Date.now()}`,{cache:'no-store'});}catch{}
+     try{h=await fetch(`https://api.vidigen.online/healthz?probe=${Date.now()}`,{cache:'no-store'});}catch{}
    }
    if(!alive)return;
    setOnline(h.ok);
