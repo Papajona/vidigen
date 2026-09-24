@@ -12,14 +12,8 @@ python -m uvicorn server:app --host 127.0.0.1 --port 8787
 
 Replicate has a concrete server-side adapter. Seedance and Runway are configurable provider slots; their exact API contracts are intentionally not guessed or embedded in the app.
 
-## AI Agent Orchestrator (V12)
+## Internal Agent package
 
-The gateway now mounts `/api/agent/*` behind the existing gateway authentication dependency.
+The gateway/agent/ package is retained as an internal orchestration scaffold. It is not mounted as a public /api/agent/* service in the current production gateway, and its placeholder tools are not advertised as production generation features. The production UI currently uses the authenticated generation, status, Brain and edit endpoints directly.
 
-- `GET /api/agent/health` — authenticated health check.
-- `GET /api/agent/tools` — authenticated list of allowed agent tools.
-- `POST /api/agent/run` — create an asynchronous agent run (`wait=false` by default).
-- `GET /api/agent/runs/{run_id}` — read a caller-owned run.
-- `POST /api/agent/runs/{run_id}/cancel` — cancel a caller-owned run.
-
-The agent delegates to the existing V12 analyzer, provider/generation service and generation-status implementation. It does not expose arbitrary shell/file/database tools. The current media quality gate is deliberately conservative and does not claim full visual QA.
+Do not add a public /api/agent/* route until its tools are wired to the same provider registry, billing, ownership checks and media QA used by the production generation path.
