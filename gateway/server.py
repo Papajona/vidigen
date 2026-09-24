@@ -136,30 +136,6 @@ def _prepare_provider_request(provider_name: str, payload: dict) -> dict[str, An
 def _is_image_mode(mode: str) -> bool:
     return str(mode or '').strip().lower() in ('text → image','text -> image','text to image')
 
-def _replicate_model_for_payload(payload: dict) -> str:
-    if _is_image_mode(payload.get('mode')):
-        return os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell')
-    return os.getenv('REPLICATE_MODEL','')
-
-def _replicate_input_for_payload(payload: dict) -> dict:
-    mode_text=str(payload.get('mode') or '').strip().lower()
-    if _is_image_mode(mode_text):
-        if payload.get('sourceUrl'):
-            raise HTTPException(400,'Text → Image does not accept source media.')
-        return {'prompt':payload.get('prompt',''),'aspect_ratio':payload.get('ratio') or '1:1','output_format':'png'}
-    provider_input={
-        'prompt':payload.get('prompt',''),
-        'duration':int(str(payload.get('duration',5)).rstrip('s')),
-        'aspect_ratio':payload.get('ratio') or payload.get('aspect_ratio') or '16:9',
-        'resolution':payload.get('resolution','720p'),
-        'generate_audio':bool(payload.get('generate_audio',True)),
-    }
-    source=payload.get('sourceUrl')
-    if source:
-        if 'image' in mode_text: provider_input['image']=source
-        elif 'video' in mode_text: provider_input['reference_videos']=[source]
-    return provider_input
-
 SENTRY_DSN = os.getenv('SENTRY_DSN', '')
 if SENTRY_DSN:
     import sentry_sdk
