@@ -218,12 +218,10 @@ function App(){
  useEffect(()=>{if(activeClip)setEditor({...DEFAULT_CLIP,...activeClip});},[activeId]); useEffect(()=>{const onKeyDown=e=>{const tag=e.target?.tagName?.toLowerCase();const editing=tag==='input'||tag==='textarea'||tag==='select';const mod=e.ctrlKey||e.metaKey;if(mod&&e.key==='Enter'){e.preventDefault();if(!generating)generate();return}if(mod&&!editing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if(mod&&!editing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(e.key==='/'&&!editing){e.preventDefault();document.querySelector('.prompt')?.focus();}};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[generating,undoStack.length,redoStack.length]);
 
  useEffect(()=>{let alive=true;(async()=>{try{
-   // Check the verified production Cloud Run gateway directly. This removes the Worker
-   // custom-domain route from the connection indicator and avoids browser preflight.
-   let h=await fetch(`https://vidigen-gateway-xvpegaghzq-uc.a.run.app/healthz?probe=${Date.now()}`,{cache:'no-store'});
-   if(!h.ok){
-     try{h=await fetch(`https://api.vidigen.online/healthz?probe=${Date.now()}`,{cache:'no-store'});}catch{}
-   }
+   // Check the verified public FastAPI route on the production Cloud Run gateway.
+   // /docs is intentionally public, already verified by CI, and avoids relying on the
+   // Cloud Run /healthz path that has returned a front-door 404 in some environments.
+   let h=await fetch(`https://vidigen-gateway-xvpegaghzq-uc.a.run.app/docs?probe=${Date.now()}`,{cache:'no-store'});
    if(!alive)return;
    setOnline(h.ok);
    // Provider configuration is protected, so only request it once a real Supabase
