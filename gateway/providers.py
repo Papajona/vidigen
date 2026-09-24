@@ -32,7 +32,9 @@ class ReplicateProvider:
         if not self.token or not self.model: raise ProviderError('Replicate is not configured on the server.')
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post(f'https://api.replicate.com/v1/models/{self.model}/predictions',headers={'Authorization':f'Bearer {self.token}','Content-Type':'application/json'},json={'input':request.get('input',request)})
-        if r.status_code>=400: raise ProviderError(f'Replicate rejected the request ({r.status_code}).')
+        if r.status_code>=400:
+            detail=r.text[:800].replace('\\n',' ')
+            raise ProviderError(f'Replicate rejected the request ({r.status_code}): {detail}')
         d=r.json(); return GenerationResult(self.name,str(d.get('id','')),str(d.get('status','starting')),_output_url(d),d)
     async def status(self,job_id,status_url=None):
         if not self.token: raise ProviderError('Replicate is not configured.')
