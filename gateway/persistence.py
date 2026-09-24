@@ -64,6 +64,22 @@ async def add_feedback(user_id,job_id,rating,accepted,signals):
     rows=await sb_request('POST','brain_feedback',{'user_id':user_id,'generation_job_id':job_id,'rating':rating,'accepted':accepted,'signals':signals})
     return rows[0] if rows else None
 
+async def consume_daily_feature(user_id: str, feature: str, daily_limit: int) -> dict | None:
+    if not enabled():
+        return {'new_count': 0, 'limit': daily_limit, 'bypassed': True}
+    rows=await sb_request('POST','rpc/consume_daily_feature_atomic',{
+        'p_user_id': user_id, 'p_feature': feature, 'p_limit': daily_limit
+    })
+    return rows[0] if rows else None
+
+async def release_daily_feature(user_id: str, feature: str) -> dict | None:
+    if not enabled():
+        return {'released': True, 'bypassed': True}
+    rows=await sb_request('POST','rpc/release_daily_feature_atomic',{
+        'p_user_id': user_id, 'p_feature': feature
+    })
+    return rows[0] if rows else None
+
 async def create_asset(user_id,project_id,kind,storage_key,mime_type=None,bytes_count=None,provenance=None):
     rows=await sb_request('POST','assets',{'user_id':user_id,'project_id':project_id,'kind':kind,'storage_key':storage_key,'mime_type':mime_type,'bytes':bytes_count,'provenance':provenance or {}})
     return rows[0]['id'] if rows else None
