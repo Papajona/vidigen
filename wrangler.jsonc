@@ -2,11 +2,7 @@
   "name": "vidigen-ai",
   "main": "worker.js",
   "compatibility_date": "2026-09-16",
-  "routes": [
-    { "pattern": "vidigen.online", "custom_domain": true },
-    { "pattern": "www.vidigen.online", "custom_domain": true },
-    { "pattern": "api.vidigen.online", "custom_domain": true }
-  ],
+  "workers_dev": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
