@@ -25,7 +25,7 @@ if (SENTRY_DSN) {
 }
 
 const BUILD_HEALTH_CHECK='cloud-run-direct';
-const NAV=[['Create','✦'],['Media','▧'],['Effects','◌'],['Audio','♫'],['Captions','CC']];
+const NAV=[['Create','✦'],['Media','▧'],['Text','T'],['Effects','◌'],['Audio','♫'],['Captions','CC']];
 const MODES=['Text → Video','Image → Video','Video → Video','Text → Image','Commercial Ad','AI Avatar'];
 const CAMERA_MOVES=['Auto (let the model choose)','Static shot','Slow push in','Pull out','Pan left','Pan right','Tilt up','Tilt down','Orbit around subject','Handheld','Aerial / drone','Dolly tracking shot'];
 const RATIOS=['16:9','9:16','1:1','4:5','21:9'];
@@ -167,7 +167,7 @@ function App(){
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
  const [gateway,setGateway]=useState(()=>CANONICAL_GATEWAY_FALLBACK);
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
- const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
+ const [showAuth,setShowAuth]=useState(false);
  const [showPasswordReset,setShowPasswordReset]=useState(false);
  const [online,setOnline]=useState(false),[providerInfo,setProviderInfo]=useState(null),[status,setStatus]=useState('Ready'),[progress,setProgress]=useState(0);
  const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false);
@@ -392,6 +392,8 @@ function App(){
  }
 
  const filter=`brightness(${editor.brightness}%) contrast(${editor.contrast}%) saturate(${editor.saturation}%) blur(${editor.blur}px)`;
+ const isImageMedia=(c)=>!!c&&(c.mediaType==='image'||String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||'')));
+ const availableModels=providerInfo?.providers?.length?MODELS.filter(([id])=>id==='auto'||providerInfo.providers.some(p=>p.key===id&&p.configured)):MODELS.filter(([id])=>id==='auto');
  return <div className="app">
   <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="share" onClick={()=>setStatus('Project link sharing is available when persistence/auth is configured.')}>Share</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
   <div className="editor">
