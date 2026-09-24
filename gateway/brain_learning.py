@@ -20,11 +20,14 @@ class LearnOutputRequest(BaseModel):
 def _allowed_host(url: str) -> bool:
     p=urllib.parse.urlparse(url)
     if p.scheme not in ('https','http') or not p.hostname: return False
-    allowed=set(x.strip().lower().rstrip('.') for x in os.getenv('VIDIGEN_LEARNING_ALLOWED_HOSTS') or os.getenv('VIDIGEN_RENDER_ALLOWED_HOSTS','').split(',') if x.strip())
+    configured=os.getenv('VIDIGEN_LEARNING_ALLOWED_HOSTS') or os.getenv('VIDIGEN_RENDER_ALLOWED_HOSTS','')
+    allowed={x.strip().lower().rstrip('.') for x in configured.split(',') if x.strip()}
     base=os.getenv('R2_PUBLIC_BASE_URL','')
     try:
-        if base: allowed.add(urllib.parse.urlparse(base).hostname.lower().rstrip('.'))
-    except Exception: pass
+        hostname=urllib.parse.urlparse(base).hostname
+        if hostname: allowed.add(hostname.lower().rstrip('.'))
+    except Exception:
+        pass
     return p.hostname.lower().rstrip('.') in allowed
 
 async def _download(url: str, path: str):
