@@ -1,10 +1,5 @@
-# OPTIONAL. Cloudflare Pages can also deploy straight from GitHub with zero YAML — connect
-# the repo in the Pages dashboard, set the build command/output dir once, done. Use THIS
-# workflow instead only if you want the frontend build gated on `npm test` first, or want
-# every secret centralized in GitHub rather than split between GitHub and Cloudflare. If
-# you use this file, disable the dashboard's own build step (set it to "no build" /
-# direct-upload) so the two don't both try to deploy on every push. See DEPLOYMENT.md.
-name: Deploy frontend to Cloudflare Pages
+# Frontend deployment for Vidigen AI
+name: Deploy frontend to Cloudflare Worker
 
 on:
   push:
@@ -16,6 +11,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "vite.config.js"
+      - "wrangler.jsonc"
       - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch: {}
 
@@ -32,13 +28,26 @@ jobs:
           node-version: 20
           cache: "npm"
 
+      - name: Validate production configuration
+        env:
+          VITE_VIDIGEN_GATEWAY_URL: ${{ secrets.VITE_VIDIGEN_GATEWAY_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$VITE_VIDIGEN_GATEWAY_URL" || { echo "::error::Missing VITE_VIDIGEN_GATEWAY_URL"; exit 1; }
+          test -n "$VITE_SUPABASE_URL" || { echo "::error::Missing VITE_SUPABASE_URL"; exit 1; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::Missing VITE_SUPABASE_ANON_KEY"; exit 1; }
+
       - run: npm ci
       - run: npm test
-      - run: npm run build
+
+      - name: Build production frontend
         env:
-          # Point the built frontend at the Cloud Run gateway's public URL/custom domain.
           VITE_VIDIGEN_GATEWAY_URL: ${{ secrets.VITE_VIDIGEN_GATEWAY_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: npm run build
 
       - name: Deploy frontend to Cloudflare Worker
         uses: cloudflare/wrangler-action@v3
