@@ -1484,8 +1484,27 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         provider=PROVIDERS[provider_name]
         job_id=None
         try:
-            job_id=await persistence.create_job(user_id,None,provider_name,os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,request_payload) if user_id and persistence.enabled() else None
+            job_id=await persistence.create_job(user_id,None,provider_name,os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,request_payload,req.idempotencyKey) if user_id and persistence.enabled() else None
         except Exception as e:
+            # The unique (user_id, idempotency_key) index makes this race-safe: when a
+            # concurrent retry loses the insert race, return the winner's job after refunding
+            # only the losing request's provisional charge.
+            existing = await persistence.get_job_by_idempotency_key(user_id, req.idempotencyKey) if user_id and req.idempotencyKey and persistence.enabled() else None
+            if existing:
+                try:
+                    from gateway.billing import refund_credits, refund_free_daily_feature
+                    billing=request_payload.get('_billing',{})
+                    if user_id and billing.get('charged'):
+                        await refund_credits(user_id,int(billing['charged']),'idempotency_race_refund',{'provider':provider_name})
+                    if user_id and billing.get('free_daily_feature'):
+                        await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+                except Exception:
+                    log.exception('Credit/daily-usage refund failed after idempotency race')
+                existing_request=existing.get('request') or {}
+                external_id=existing_request.get('_external_id')
+                if existing['id'] not in JOB_CACHE and external_id:
+                    JOB_CACHE[existing['id']]={'provider':existing['provider'],'external_id':external_id,'user_id':user_id,'request':existing_request}
+                return {'promptId':existing['id'],'provider':existing['provider'],'status':existing.get('status','processing'),'externalJobId':external_id,'idempotentReplay':True}
             try:
                 from gateway.billing import refund_credits, refund_free_daily_feature
                 billing=request_payload.get('_billing',{})
