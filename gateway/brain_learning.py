@@ -87,6 +87,12 @@ def build_router(auth_dependency):
         uid=(user or {}).get('sub') if isinstance(user,dict) else None
         if not uid: raise HTTPException(401,'Signed-in user required.')
         return await learn_output(req,uid)
+    @router.get('/profile')
+    async def profile(user=Depends(auth_dependency)):
+        uid=(user or {}).get('sub') if isinstance(user,dict) else None
+        if not uid: raise HTTPException(401,'Signed-in user required.')
+        return await persistence.get_brain_profile(uid)
+
     @router.get('/patterns')
     async def patterns(user=Depends(auth_dependency)):
         uid=(user or {}).get('sub') if isinstance(user,dict) else None
