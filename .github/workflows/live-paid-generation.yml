@@ -62,13 +62,15 @@ jobs:
           echo "::add-mask::$PASSWORD"
 
           echo "Creating disposable confirmed Supabase smoke user..."
-          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/admin/users"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             --data "{"email":"$EMAIL","password":"$PASSWORD","email_confirm":true}"             > /tmp/create-user.json
+          jq -n --arg email "$EMAIL" --arg password "$PASSWORD"             '{email:$email,password:$password,email_confirm:true}' > /tmp/create-user-request.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/admin/users"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             --data-binary @/tmp/create-user-request.json             > /tmp/create-user.json
 
           USER_ID="$(jq -r '.id' /tmp/create-user.json)"
           test -n "$USER_ID" && test "$USER_ID" != "null"
 
           echo "Signing in to obtain a real Supabase access token..."
-          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password"             -H "apikey: $SUPABASE_ANON_KEY"             -H "Content-Type: application/json"             --data "{"email":"$EMAIL","password":"$PASSWORD"}"             > /tmp/session.json
+          jq -n --arg email "$EMAIL" --arg password "$PASSWORD"             '{email:$email,password:$password}' > /tmp/login-request.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password"             -H "apikey: $SUPABASE_ANON_KEY"             -H "Content-Type: application/json"             --data-binary @/tmp/login-request.json             > /tmp/session.json
 
           ACCESS_TOKEN="$(jq -r '.access_token' /tmp/session.json)"
           test -n "$ACCESS_TOKEN" && test "$ACCESS_TOKEN" != "null"
@@ -82,7 +84,8 @@ jobs:
           echo "5-second production price: $PRICE credits"
 
           echo "Funding exactly one production generation..."
-          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/rest/v1/credit_wallets?on_conflict=user_id"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             -H "Prefer: resolution=merge-duplicates,return=representation"             --data "{"user_id":"$USER_ID","balance":$PRICE,"monthly_allowance":$PRICE}"             > /tmp/wallet.json
+          jq -n --arg user_id "$USER_ID" --argjson balance "$PRICE"             '{user_id:$user_id,balance:$balance,monthly_allowance:$balance}' > /tmp/wallet-request.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/rest/v1/credit_wallets?on_conflict=user_id"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             -H "Prefer: resolution=merge-duplicates,return=representation"             --data-binary @/tmp/wallet-request.json             > /tmp/wallet.json
 
           IDEMPOTENCY_KEY="live-smoke-$TS-$(openssl rand -hex 8)"
           PROMPT="Create a premium cinematic 5-second product showcase for Vidigen AI: a sleek futuristic device on a clean studio table, controlled camera push-in, realistic materials, soft cinematic lighting, polished commercial finish, no text or logos."
