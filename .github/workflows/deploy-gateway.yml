@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "gateway/**"
+      - "tests/**"
       - "Dockerfile"
       - ".github/workflows/deploy-gateway.yml"
   workflow_dispatch: {}
