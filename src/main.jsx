@@ -349,7 +349,25 @@ function App(){
  function redo(){if(!redoStack.length)return;const next=redoStack[redoStack.length-1];setUndoStack(s=>[...s,clips].slice(-30));setRedoStack(r=>r.slice(0,-1));setClips(next)}
  async function analyze(){setStatus('Analyzing creative brief…');try{const r=await gatewayFetch(gateway,'/api/analyze',{method:'POST',body:JSON.stringify({prompt})},token);setAnalysis(await r.json());setStatus('Brief analyzed.')}catch{try{if(!geminiConfigured(gateway))throw 0;setAnalysis(await analyzeWithGemini(prompt,gateway,token));setStatus('Gemini analysis ready.')}catch{setAnalysis(normalizeRequest(prompt));setStatus('Local analysis ready.')}}}
  async function improvePrompt(){setStatus('Optimizing creative direction…');try{if(geminiConfigured(gateway)){setPrompt(await improvePromptWithGemini(prompt,mode,gateway,token));}else setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus('Creative brief optimized.')}catch(e){setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus(`Local optimization used: ${e.message}`)}}
- function makeScenes(activeProfile=brainProfile){const total=Math.max(1,parseInt(duration)||5);const count=total>=30?5:total>=15?3:Math.max(1,Math.ceil(total/8));const each=Math.max(2,Math.round((total/count)*10)/10);let learned=memoryOn?buildLocalPrompt(prompt,profile,mode):prompt;if(memoryOn&&(activeProfile?.preferred_tags||[]).length){learned+=` Apply the user's learned creative preferences: ${activeProfile.preferred_tags.join(', ')}.`;}const useAutoCamera=cameraMove===CAMERA_MOVES[0];return Array.from({length:count},(_,i)=>{const motion=useAutoCamera?(i===0?'establishing movement':i===count-1?'controlled closing push-in':'deliberate cinematic movement'):cameraMove;return{id:`scene-${Date.now()}-${i}`,duration:each,prompt:`${learned}. Shot ${i+1} of ${count}; camera direction: ${motion}. Preserve subject identity, lighting, wardrobe, location and visual continuity.`,motion}})}
+ function makeScenes(activeProfile=brainProfile){
+   const total=Math.max(1,parseInt(duration)||5);
+   const imageMode=mode==='Text → Image';
+   const sourceTransform=mode==='Image → Video'||mode==='Video → Video';
+   const count=imageMode||sourceTransform?1:(total>=30?5:total>=15?3:Math.max(1,Math.ceil(total/8)));
+   const each=imageMode?5:Math.max(2,Math.round((total/count)*10)/10);
+   let learned=memoryOn?buildLocalPrompt(prompt,profile,mode):prompt;
+   if(memoryOn&&(activeProfile?.preferred_tags||[]).length){
+     learned+=' Apply the user\\'s learned creative preferences: '+activeProfile.preferred_tags.join(', ')+'.';
+   }
+   const useAutoCamera=cameraMove===CAMERA_MOVES[0];
+   return Array.from({length:count},(_,i)=>{
+     const motion=useAutoCamera?(i===0?'establishing movement':i===count-1?'controlled closing push-in':'deliberate cinematic movement'):cameraMove;
+     const shotPrompt=imageMode
+       ? learned+'. Create one production-ready still image with clear subject, composition, lighting, materials, environment and visual hierarchy.'
+       : learned+(sourceTransform?'. Preserve the source subject identity, composition and visual continuity. '+(mode==='Image → Video'?'Animate the image naturally with ':'Transform the reference video with ')+'deliberate motion and temporal consistency.':'. Shot '+(i+1)+' of '+count+'; camera direction: '+motion+'. Preserve subject identity, lighting, wardrobe, location and visual continuity.');
+     return{id:'scene-'+Date.now()+'-'+i,duration:each,prompt:shotPrompt,motion};
+   });
+ }
  async function generate(){
    if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
    const requiredSourceType=generationSourceTypeForMode();
@@ -458,7 +476,7 @@ function App(){
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
  const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
  return <div className="app">
-  <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="share" onClick={()=>setStatus('Project link sharing is available when persistence/auth is configured.')}>Share</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
+  <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
   <div className="editor">
    <nav className="rail">
   <div className="railGroup">
@@ -493,7 +511,7 @@ function App(){
     <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Use an uploaded file or a matching timeline asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
     {generationSource
       ? <div className="sourcePreview">{generationSource.type==='image'?<img src={generationSource.preview} alt="" />:<video src={generationSource.preview} muted playsInline controls={false}/>}<div><b>{generationSource.name}</b><small>Ready for {mode}</small></div></div>
-      : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label><span>or select a matching asset in Media</span></div>}
+      : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected asset</button>}<span>or choose an asset from Media</span></div>}
     </div>}
   <label className="sectionLabel">Your idea</label>
   <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the subject, action, look and result you want…"/>
@@ -554,7 +572,7 @@ function App(){
           }
         </div>)}
       </div>
-      <div className="hint">Free plan: 5 avatar generations and 5 photo enhancements per day, with 500 MB storage. Video generation is available through purchased credits or a paid plan.</div>
+      <div className="hint">Free plan: 5 photo enhancements per day, with 500 MB storage. Video generation is available through purchased credits or a paid plan. Presenter/avatar generation will appear when a production avatar provider is enabled.</div>
       <div className="analysis"><b>Video credits</b><span>150 credits • GHS 30.00</span><button onClick={async()=>{try{const r=await gatewayFetch(gateway,'/api/billing/checkout/credits',{method:'POST',body:JSON.stringify({credits:150})},token);const d=await r.json();if(!d.authorization_url)throw new Error('No Paystack checkout URL returned.');window.location.href=d.authorization_url}catch(e){setStatus(e.message)}}}>Buy 150 credits</button></div>
       <div className="analysis"><b>Credit balance</b><span>{billing?.wallet?.balance??'—'} credits remaining</span></div>
       <div className="paymentNote"><span>Payments are processed securely through Paystack.</span><small>Google Pay support will appear here when the production processor and approval are confirmed.</small></div>
