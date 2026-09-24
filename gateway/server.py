@@ -1503,6 +1503,8 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         billing_receipt=await _bill_generation(user, req)
         request_payload=req.model_dump()
         request_payload['_billing']=billing_receipt
+        request_payload['_provider_candidates']=list(provider_candidates)
+        request_payload['_provider_attempts']=[]
         job_id=None
         try:
             job_id=await persistence.create_job(
@@ -1593,6 +1595,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             external_id=result.job_id
             cache_id=job_id or external_id
             request_payload['_external_id']=external_id
+            request_payload['_provider_attempts']=list(request_payload.get('_provider_attempts') or []) + [provider_name]
             status_url=((result.raw or {}).get('status_url') or
                         (result.raw or {}).get('statusUrl') or
                         ((result.raw or {}).get('urls') or {}).get('get')
@@ -1734,8 +1737,96 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 if user and user.get('sub'): asyncio.create_task(_auto_learn_output(user,prompt_id,result.output_url,provider))
                 return {'status':'complete','videoUrl':result.output_url,'provider':provider}
             if result.status.lower() in ('failed','canceled','cancelled','error'):
-                if persistence.enabled() and user and user.get('sub'): await persistence.update_job(prompt_id,status='failed',error=str((result.raw or {}).get('error','Provider failed')))
-                return {'status':'error','error':str((result.raw or {}).get('error','Provider failed'))}
+                request_data=job.get('request') or {}
+                candidates=[str(x).lower() for x in (request_data.get('_provider_candidates') or []) if str(x).lower() in PROVIDERS]
+                attempted=[str(x).lower() for x in (request_data.get('_provider_attempts') or [])]
+                if provider not in attempted:
+                    attempted.append(provider)
+                next_candidates=[x for x in candidates if x not in set(attempted)]
+                # A provider can accept a job and fail later. Continue the same logical
+                # generation request on the next configured provider without charging again.
+                for fallback_provider in next_candidates:
+                    fallback=PROVIDERS[fallback_provider]
+                    try:
+                        fallback_result=await fallback.submit({'input':request_data.get('input',request_data)})
+                        if not fallback_result.job_id:
+                            raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
+                    except Exception as e:
+                        log.warning(
+                            f'Provider {fallback_provider} failed during status-time failover for '
+                            f'job {prompt_id}: {e}'
+                        )
+                        continue
+
+                    new_external=fallback_result.job_id
+                    new_request=dict(request_data)
+                    new_request['_external_id']=new_external
+                    new_request['_provider_attempts']=attempted + [fallback_provider]
+                    fallback_status_url=(
+                        (fallback_result.raw or {}).get('status_url') or
+                        (fallback_result.raw or {}).get('statusUrl') or
+                        ((fallback_result.raw or {}).get('urls') or {}).get('get')
+                        if isinstance(fallback_result.raw,dict) else None
+                    )
+                    if fallback_status_url:
+                        new_request['_status_url']=fallback_status_url
+                    new_request.pop('_billing_settled', None)
+                    new_job={
+                        'provider':fallback_provider,
+                        'external_id':new_external,
+                        'user_id':job.get('user_id'),
+                        'request':new_request,
+                    }
+                    JOB_CACHE[prompt_id]=new_job
+                    if persistence.enabled() and user and user.get('sub'):
+                        try:
+                            await persistence.update_job(
+                                prompt_id,
+                                provider=fallback_provider,
+                                model=os.getenv('REPLICATE_MODEL','') if fallback_provider=='replicate' else fallback_provider,
+                                status='processing',
+                                request=new_request,
+                                error=None,
+                            )
+                        except Exception:
+                            log.exception('Generation fallback started but persistence update failed')
+                    log.warning(
+                        f'Provider {provider} failed after accepting job {prompt_id}; '
+                        f'continued generation on {fallback_provider}.'
+                    )
+                    return {
+                        'status':'running',
+                        'provider':fallback_provider,
+                        'fallbackUsed':True,
+                        'providerAttempts':new_request['_provider_attempts'],
+                    }
+
+                error_message=str((result.raw or {}).get('error','Provider failed'))
+                billing_info=request_data.get('_billing') or {}
+                charged=int(billing_info.get('charged') or 0)
+                if not request_data.get('_billing_settled'):
+                    try:
+                        from gateway.billing import refund_credits, refund_free_daily_feature
+                        if user and user.get('sub') and charged:
+                            await refund_credits(user['sub'],charged,'provider_failure',{'job_id':prompt_id,'providers':attempted})
+                        if user and user.get('sub') and billing_info.get('free_daily_feature'):
+                            await refund_free_daily_feature(user['sub'],billing_info['free_daily_feature'])
+                        request_data['_billing_settled']=True
+                        job['request']=request_data
+                        JOB_CACHE[prompt_id]=job
+                    except Exception:
+                        log.exception('Credit/daily-usage refund failed after all provider attempts failed')
+                if persistence.enabled() and user and user.get('sub'):
+                    await persistence.update_job(
+                        prompt_id,
+                        status='failed',
+                        error=f'All configured providers failed. {error_message}',
+                        request=request_data,
+                    )
+                return {
+                    'status':'error',
+                    'error':'All configured generation providers failed. Any credits charged have been refunded.'
+                }
             return {'status':'running','provider':provider}
         except ProviderError as e: raise HTTPException(502,str(e))
     async with httpx.AsyncClient(timeout=20,follow_redirects=False) as client:
