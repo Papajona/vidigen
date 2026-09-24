@@ -126,6 +126,8 @@ Settings → Secrets and variables → Actions, add:
 | `SUPABASE_URL` | `https://YOUR_PROJECT.supabase.co` |
 | `R2_ENDPOINT`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | from your Cloudflare R2 bucket settings |
 | `VITE_VIDIGEN_GATEWAY_URL` | `https://api.vidigen.online` (used by the frontend build) |
+| `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` (public client URL) |
+| `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key for the browser client |
 | `VITE_SENTRY_DSN` | optional |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | only if using `deploy-frontend.yml` instead of the Pages dashboard |
 
@@ -204,3 +206,4 @@ The workflow deploys with `--memory=4Gi --cpu=2 --no-cpu-throttling --concurrenc
 - [ ] Hit `https://api.vidigen.online/api/health` with your gateway token and confirm the
       cert and DNS mapping are actually serving through the custom domain, not just the
       raw `*.run.app` URL.
+\n\n### Production security note\nDo not set `VITE_GEMINI_API_KEY` in a public production build. Any `VITE_*` value is embedded into the browser bundle. Gemini should be called server-side through the gateway if it is enabled for production.\n
