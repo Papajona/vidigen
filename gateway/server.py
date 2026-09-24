@@ -720,6 +720,19 @@ async def admin_release_readiness(request: Request, _=Depends(require_admin)):
             supabase_ok = False
     r2_ok = all(os.getenv(k) for k in ('R2_ENDPOINT','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET','R2_PUBLIC_BASE_URL'))
     ffmpeg_ok = bool(shutil.which('ffmpeg')) and bool(shutil.which('ffprobe'))
+    pillow_ok = False
+    try:
+        from PIL import Image  # noqa: F401
+        pillow_ok = True
+    except Exception:
+        pass
+    daily_entitlements_ok = False
+    if persistence.enabled():
+        try:
+            await persistence.sb_request('GET','daily_feature_usage',params={'select':'user_id','limit':'1'})
+            daily_entitlements_ok = True
+        except Exception:
+            daily_entitlements_ok = False
     whisper_ok = False
     try:
         import faster_whisper  # noqa: F401
@@ -742,6 +755,8 @@ async def admin_release_readiness(request: Request, _=Depends(require_admin)):
         'render_source_allowlist': bool(RENDER_ALLOWED_HOSTS or os.getenv('R2_PUBLIC_BASE_URL')),
         'ffmpeg_and_ffprobe': ffmpeg_ok,
         'captions_engine_installed': whisper_ok,
+        'photo_enhancement_engine_installed': pillow_ok,
+        'free_daily_entitlements_ready': daily_entitlements_ok,
         'real_generation_route_available': any(providers.values()),
         'admin_2fa_required': ADMIN_2FA_REQUIRED,
         'output_moderation_ready': output_moderation_ready,
