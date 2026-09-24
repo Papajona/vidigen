@@ -1460,20 +1460,26 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         log.warning(f'Blocked prompt from user {(user or {}).get("sub","anon")}: {prompt_check.get("reason")}')
         raise HTTPException(422, f'This prompt was flagged and cannot be generated: {prompt_check.get("reason") or "policy violation"}')
     requested=(getattr(req,'model',None) or 'auto').lower() if hasattr(req,'model') else 'auto'
-    configured={
-        'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
-        'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
-        'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
-    }
-    if requested == 'auto':
+
+    def configured_provider_names():
+        configured={
+            'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
+            'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
+            'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
+        }
         priority=[x.strip().lower() for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY','replicate,seedance,runway').split(',') if x.strip()]
-        provider_name=next((name for name in priority if configured.get(name) and name in PROVIDERS), 'local')
+        return [name for name in priority if configured.get(name) and name in PROVIDERS]
+
+    configured_names=configured_provider_names()
+    if requested == 'auto':
+        provider_candidates=configured_names
     elif requested in ('replicate','seedance','runway'):
-        if not configured.get(requested):
+        if requested not in configured_names:
             raise HTTPException(503,f'{requested.title()} is not configured on the gateway.')
-        provider_name=requested
+        # A requested provider is the preferred first choice, not a single point of failure.
+        provider_candidates=[requested]+[name for name in configured_names if name != requested]
     else:
-        provider_name='local'
+        provider_candidates=[]
     user_id=(user or {}).get('sub') if user else None
     if req.idempotencyKey and user_id and persistence.enabled():
         # Return the existing job instead of billing/submitting again. Best-effort: a
@@ -1490,22 +1496,34 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                 JOB_CACHE[existing['id']]={'provider':existing['provider'],'external_id':external_id,'user_id':user_id,'request':existing_request}
             return {'promptId':existing['id'],'provider':existing['provider'],'status':existing.get('status','processing'),'externalJobId':external_id,'idempotentReplay':True}
     request_payload=req.model_dump()
-    if provider_name in PROVIDERS and provider_name != 'local':
+    if provider_candidates:
+        # Bill once for the logical generation request. Provider failover is an execution
+        # concern, not a second user operation, so a fallback attempt must never double-charge.
+        provider_name=provider_candidates[0]
         billing_receipt=await _bill_generation(user, req)
+        request_payload=req.model_dump()
         request_payload['_billing']=billing_receipt
-        provider=PROVIDERS[provider_name]
         job_id=None
         try:
-            job_id=await persistence.create_job(user_id,None,provider_name,os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,request_payload,req.idempotencyKey) if user_id and persistence.enabled() else None
+            job_id=await persistence.create_job(
+                user_id,
+                None,
+                provider_name,
+                os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                request_payload,
+                req.idempotencyKey
+            ) if user_id and persistence.enabled() else None
         except Exception as e:
-            # The unique (user_id, idempotency_key) index makes this race-safe: when a
-            # concurrent retry loses the insert race, return the winner's job after refunding
-            # only the losing request's provisional charge.
-            existing = await persistence.get_job_by_idempotency_key(user_id, req.idempotencyKey) if user_id and req.idempotencyKey and persistence.enabled() else None
+            # Keep the existing idempotency behaviour: if the persistence insert loses a
+            # concurrent race, return the winner and refund only this request's provisional
+            # charge/daily entitlement.
+            existing = await persistence.get_job_by_idempotency_key(
+                user_id, req.idempotencyKey
+            ) if user_id and req.idempotencyKey and persistence.enabled() else None
             if existing:
                 try:
                     from gateway.billing import refund_credits, refund_free_daily_feature
-                    billing=request_payload.get('_billing',{})
+                    billing=billing_receipt or {}
                     if user_id and billing.get('charged'):
                         await refund_credits(user_id,int(billing['charged']),'idempotency_race_refund',{'provider':provider_name})
                     if user_id and billing.get('free_daily_feature'):
@@ -1516,47 +1534,119 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                 external_id=existing_request.get('_external_id')
                 if existing['id'] not in JOB_CACHE and external_id:
                     JOB_CACHE[existing['id']]={'provider':existing['provider'],'external_id':external_id,'user_id':user_id,'request':existing_request}
-                return {'promptId':existing['id'],'provider':existing['provider'],'status':existing.get('status','processing'),'externalJobId':external_id,'idempotentReplay':True}
+                return {
+                    'promptId':existing['id'],
+                    'provider':existing['provider'],
+                    'status':existing.get('status','processing'),
+                    'externalJobId':external_id,
+                    'idempotentReplay':True
+                }
             try:
                 from gateway.billing import refund_credits, refund_free_daily_feature
-                billing=request_payload.get('_billing',{})
-                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'job_persistence_failure',{'provider':provider_name})
-                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
-            except Exception: log.exception('Credit/daily-usage refund failed after job persistence error')
+                billing=billing_receipt or {}
+                if user_id and billing.get('charged'):
+                    await refund_credits(user_id,int(billing['charged']),'job_persistence_failure',{'provider':provider_name})
+                if user_id and billing.get('free_daily_feature'):
+                    await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+            except Exception:
+                log.exception('Credit/daily-usage refund failed after job persistence error')
             raise HTTPException(503,'Generation job could not be created.')
-        try:
-            result=await provider.submit({'input':request_payload.get('input',request_payload)})
-        except ProviderError as e:
+
+        last_error='No provider accepted the generation request.'
+        for attempt, provider_name in enumerate(provider_candidates):
+            if attempt > 0 and job_id and persistence.enabled():
+                try:
+                    await persistence.update_job(
+                        job_id,
+                        provider=provider_name,
+                        model=os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                        status='queued',
+                        error=None,
+                    )
+                except Exception:
+                    log.exception('Failed to update generation job during provider failover')
+
+            provider=PROVIDERS[provider_name]
             try:
-                from gateway.billing import refund_credits, refund_free_daily_feature
-                billing=request_payload.get('_billing',{})
-                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'provider_failure',{'provider':provider_name})
-                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
-            except Exception: log.exception('Credit/daily-usage refund failed after provider error')
-            if job_id and persistence.enabled(): await persistence.update_job(job_id,status='failed',error=str(e))
-            raise HTTPException(503,str(e))
-        except Exception as e:
-            log.exception('Unexpected generation provider failure')
-            try:
-                from gateway.billing import refund_credits, refund_free_daily_feature
-                billing=request_payload.get('_billing',{})
-                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'provider_unexpected_failure',{'provider':provider_name})
-                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
-            except Exception: log.exception('Credit/daily-usage refund failed after unexpected provider error')
+                result=await provider.submit({'input':request_payload.get('input',request_payload)})
+                if not result.job_id:
+                    raise ProviderError(f'{provider_name.title()} returned no job ID.')
+            except ProviderError as e:
+                last_error=str(e)
+                next_provider=provider_candidates[attempt+1] if attempt+1 < len(provider_candidates) else None
+                if next_provider:
+                    log.warning(
+                        f'Provider {provider_name} failed during generation submission: {e}. '
+                        f'Failing over to {next_provider}.'
+                    )
+                else:
+                    log.error(f'All configured generation providers failed; last provider {provider_name}: {e}')
+                continue
+            except Exception as e:
+                last_error=f'{provider_name}: unexpected provider failure'
+                log.exception(f'Provider {provider_name} failed unexpectedly during submission; attempting configured fallback providers.')
+                next_provider=provider_candidates[attempt+1] if attempt+1 < len(provider_candidates) else None
+                if next_provider:
+                    log.warning(f'Failing over from {provider_name} to {next_provider}.')
+                continue
+
+            external_id=result.job_id
+            cache_id=job_id or external_id
+            request_payload['_external_id']=external_id
+            status_url=((result.raw or {}).get('status_url') or
+                        (result.raw or {}).get('statusUrl') or
+                        ((result.raw or {}).get('urls') or {}).get('get')
+                        if isinstance(result.raw,dict) else None)
+            if status_url:
+                request_payload['_status_url']=status_url
+            JOB_CACHE[cache_id]={
+                'provider':provider_name,
+                'external_id':external_id,
+                'user_id':user_id,
+                'request':request_payload
+            }
             if job_id and persistence.enabled():
-                try: await persistence.update_job(job_id,status='failed',error='Unexpected provider failure')
-                except Exception: log.exception('Failed to mark generation job failed')
-            raise HTTPException(503,'Generation provider request failed. Please try again.')
-        external_id=result.job_id
-        cache_id=job_id or external_id
-        request_payload['_external_id']=external_id
-        status_url=(result.raw or {}).get('status_url') or (result.raw or {}).get('statusUrl') or ((result.raw or {}).get('urls') or {}).get('get') if isinstance(result.raw,dict) else None
-        if status_url: request_payload['_status_url']=status_url
-        JOB_CACHE[cache_id]={'provider':provider_name,'external_id':external_id,'user_id':user_id,'request':request_payload}
+                try:
+                    await persistence.update_job(
+                        job_id,
+                        provider=provider_name,
+                        model=os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                        status='processing',
+                        request=request_payload
+                    )
+                except Exception:
+                    log.exception('Generation was submitted but persistence status update failed')
+            return {
+                'promptId':cache_id,
+                'provider':provider_name,
+                'status':result.status,
+                'externalJobId':external_id,
+                'fallbackUsed': attempt > 0,
+                'providerAttempts': provider_candidates[:attempt+1],
+            }
+
+        try:
+            from gateway.billing import refund_credits, refund_free_daily_feature
+            billing=billing_receipt or {}
+            if user_id and billing.get('charged'):
+                await refund_credits(user_id,int(billing['charged']),'all_providers_failed',{'providers':provider_candidates,'last_error':last_error})
+            if user_id and billing.get('free_daily_feature'):
+                await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+        except Exception:
+            log.exception('Credit/daily-usage refund failed after all provider attempts failed')
         if job_id and persistence.enabled():
-            try: await persistence.update_job(job_id,status='processing',request=request_payload)
-            except Exception: log.exception('Generation job was submitted but persistence status update failed')
-        return {'promptId':cache_id,'provider':provider_name,'status':result.status,'externalJobId':external_id}
+            try:
+                await persistence.update_job(
+                    job_id,
+                    status='failed',
+                    error=f'All configured providers failed. {last_error}'
+                )
+            except Exception:
+                log.exception('Failed to mark generation job failed after provider failover')
+        raise HTTPException(
+            503,
+            'All configured generation providers failed. Please try again.'
+        )
     # Local ComfyUI path.
     if not WORKFLOW.exists(): raise HTTPException(503,'workflow_api.json is missing. Export an API-format workflow from ComfyUI.')
     billing_receipt=await _bill_generation(user, req)
