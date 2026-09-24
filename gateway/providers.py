@@ -524,12 +524,24 @@ class ManifestHTTPProvider(BaseGenerationProvider):
 
 def _manifest_specs() -> list[dict[str, Any]]:
     raw = os.getenv("VIDIGEN_PROVIDER_CONFIG_JSON", "").strip()
+    config_file = os.getenv("VIDIGEN_PROVIDER_CONFIG_FILE", str(
+        __import__("pathlib").Path(__file__).with_name("providers.json")
+    ))
+    if not raw:
+        try:
+            path = __import__("pathlib").Path(config_file)
+            if path.exists():
+                raw = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            raw = ""
     if not raw:
         return []
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ProviderError(f"VIDIGEN_PROVIDER_CONFIG_JSON is invalid JSON: {exc}") from exc
+        raise ProviderError(
+            f"Provider manifest is invalid JSON ({config_file} / VIDIGEN_PROVIDER_CONFIG_JSON): {exc}"
+        ) from exc
     if isinstance(data, dict):
         data = data.get("providers", [])
     if not isinstance(data, list):
