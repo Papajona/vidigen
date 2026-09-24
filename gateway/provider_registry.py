@@ -1,38 +1,35 @@
-"""Production provider registry.
+"""Compatibility facade for Vidigen's provider registry.
 
-Providers are registered by capability so the Agent can select among real adapters
-without knowing provider-specific credentials or endpoints.
+The executable registry lives in gateway.providers. This module is retained so older
+imports do not silently diverge from the production routing path.
 """
-from dataclasses import dataclass
-import os
-from typing import Any, Callable
+from gateway.providers import (
+    PROVIDERS,
+    ProviderError,
+    configured_providers,
+    provider_inventory,
+)
 
-@dataclass(frozen=True)
-class ProviderSpec:
-    key: str
-    capability: str
-    enabled_env: str | None = None
-    cost_key: str | None = None
-    adapter_factory: Callable[[], Any] | None = None
 
 class ProviderRegistry:
-    def __init__(self, specs: list[ProviderSpec] | None = None):
-        self._specs = list(specs or [])
-    def register(self, spec: ProviderSpec) -> None:
-        self._specs = [s for s in self._specs if s.key != spec.key]
-        self._specs.append(spec)
-    def list(self, capability: str | None = None) -> list[dict]:
-        rows=[]
-        for s in self._specs:
-            configured = True if not s.enabled_env else bool(os.getenv(s.enabled_env,''))
-            if capability and s.capability != capability: continue
-            rows.append({'key':s.key,'capability':s.capability,'configured':configured,'cost_key':s.cost_key})
-        return rows
-    def choose(self, capability: str, preferred: str = 'auto') -> ProviderSpec:
-        candidates=[s for s in self._specs if s.capability == capability and (not s.enabled_env or os.getenv(s.enabled_env,''))]
-        if preferred != 'auto':
-            for s in candidates:
-                if s.key == preferred: return s
-            raise RuntimeError(f'{preferred} is not configured for {capability}.')
-        if not candidates: raise RuntimeError(f'No configured provider is available for {capability}.')
-        return candidates[0]
+    def list(self, capability=None):
+        return provider_inventory() if capability is None else [
+            row for row in provider_inventory()
+            if capability in (row.get("capabilities") or [])
+        ]
+
+    def choose(self, capability, preferred="auto"):
+        candidates=configured_providers(capability)
+        if preferred != "auto":
+            if preferred not in candidates:
+                raise ProviderError(f"{preferred} is not configured for {capability}.")
+            return PROVIDERS[preferred]
+        if not candidates:
+            raise ProviderError(f"No configured provider is available for {capability}.")
+        return PROVIDERS[candidates[0]]
+
+    def register(self, spec):
+        raise RuntimeError(
+            "Runtime registration is configuration-driven. Add the provider manifest to "
+            "gateway/providers.json or VIDIGEN_PROVIDER_CONFIG_JSON and restart the gateway."
+        )
