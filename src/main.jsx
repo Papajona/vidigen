@@ -36,12 +36,16 @@ const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}cat
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
 let _onUnauthorizedHandler = null;
-const DEFAULT_GATEWAY_FALLBACK='https://vidigen-gateway-xvpegaghzq-uc.a.run.app';
+const DEFAULT_GATEWAY_FALLBACK='https://api.vidigen.online';
+const CANONICAL_GATEWAY_FALLBACK='https://vidigen-gateway-xvpegaghzq-uc.a.run.app';
 async function gatewayFetch(base,path,options={},token=''){
- const headers={...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers||{})};
+ const hasBody=options.body!=null;
+ const headers={...((hasBody && !(options.body instanceof FormData))?{'Content-Type':'application/json'}:{}),...(options.headers||{})};
  if(token) headers.Authorization=`Bearer ${token}`;
  const primary=base.replace(/\/$/,'');
- const fallback=(import.meta.env.VITE_VIDIGEN_GATEWAY_FALLBACK_URL||DEFAULT_GATEWAY_FALLBACK).replace(/\/$/,'');
+ const configuredFallback=(import.meta.env.VITE_VIDIGEN_GATEWAY_FALLBACK_URL||CANONICAL_GATEWAY_FALLBACK).replace(/\/$/,'');
+ const fallback=(configuredFallback===primary ? DEFAULT_GATEWAY_FALLBACK : configuredFallback).replace(/\/$/,'');
+ const cloudRunFallback=CANONICAL_GATEWAY_FALLBACK.replace(/\/$/,'');
  let r;
  try{
    r=await fetch(`${primary}${path}`,{...options,headers});
@@ -62,7 +66,10 @@ async function gatewayFetch(base,path,options={},token=''){
    if(primary!==fallback && (r.status>=500 || r.status===404)){
      try{
        const retry=await fetch(`${fallback}${path}`,{...options,headers});
-       if(retry.ok){ r=retry; base=fallback; }
+       if(retry.ok){ r=retry; base=fallback; } else if(fallback!==cloudRunFallback){
+         const retry2=await fetch(`${cloudRunFallback}${path}`,{...options,headers});
+         if(retry2.ok){ r=retry2; base=cloudRunFallback; }
+       }
      }catch{}
    }
    // A stale/unverified custom API hostname should not strand the live frontend while the
@@ -73,6 +80,10 @@ async function gatewayFetch(base,path,options={},token=''){
    if(shouldFallback){
      r=await fetch(`${fallback}${path}`,{...options,headers});
      base=fallback;
+     if(!r.ok && fallback!==cloudRunFallback){
+       const retry2=await fetch(`${cloudRunFallback}${path}`,{...options,headers});
+       if(retry2.ok){ r=retry2; base=cloudRunFallback; }
+     }
    }
  }
  if(!r.ok){let m=`Gateway HTTP ${r.status}`;try{const j=await r.json();m=j.detail||j.error||m}catch{}throw new Error(m)}
