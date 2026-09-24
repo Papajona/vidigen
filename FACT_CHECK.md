@@ -110,3 +110,56 @@ progress, not a tier change.
 - Agent QA is intentionally conservative: it verifies generation completion and an output URL; it does not claim full visual QA until a real media-analysis worker exists.
 - The Agent does not report successful video creation when the configured provider/workflow is unavailable; the integration test confirms a video goal fails rather than falsely completing.
 - Web/Android build execution remains environment-blocked here by unavailable dependencies/network; source-level and offline test checks were still run.
+
+## Fourth addendum — moderation/billing hardening after external review
+A review of this package (not written by this environment) flagged four gaps. All four
+have been addressed in source; what follows is a plain account of the change and what has
+and hasn't been independently re-verified.
+
+- **Output moderation failed OPEN by default when unconfigured.** Previously, a missing
+  `REPLICATE_API_TOKEN` (or a failed/errored classifier call) resulted in `safe: True` —
+  generations were delivered unchecked. Fixed: `gateway/moderation.py` now fails CLOSED by
+  default (`VIDIGEN_MODERATION_ENFORCE=true`) — "the classifier couldn't run" now blocks
+  the item instead of waving it through. Explicitly relaxable via
+  `VIDIGEN_MODERATION_ENFORCE=false` for dev environments without moderation credentials;
+  this must stay `true` (the default) for any deployment serving real users. Added to the
+  `/api/admin/release-readiness` gate as `output_moderation_ready` so an unconfigured token
+  shows up as a readiness failure, not a silent gap discovered via blocked-output tickets.
+  Verified: `tests/test_moderation.py` now asserts both directions (enforced-blocks and
+  explicitly-relaxed-allows) rather than only the old fail-open path.
+- **Prompt keyword fallback was narrow.** The no-Groq fallback only matched CSAM-adjacent
+  phrasing. Added patterns for weapon/explosive synthesis instructions, drug synthesis, and
+  non-consensual sexual content — still a fallback, not a replacement for the Groq
+  classifier, and still real about not catching obfuscation/non-English phrasing (see the
+  module docstring). Verified: new fallback pattern tests in `tests/test_moderation.py`.
+- **2FA verification had no account-level lockout**, only the gateway's IP-based rate
+  limiter — weak against a 6-digit TOTP code if attempts are spread across IPs. Added
+  `failed_attempts`/`locked_until` to `admin_2fa` (idempotent `ADD COLUMN IF NOT EXISTS`
+  migration included in `supabase_schema.sql` for already-deployed databases), a
+  configurable threshold/lockout window (`VIDIGEN_2FA_MAX_ATTEMPTS`,
+  `VIDIGEN_2FA_LOCKOUT_MINUTES`, defaults 5/15), and wiring in
+  `/api/admin/2fa/verify` to check-before-verify and record/reset on
+  failure/success. Verified: `tests/test_2fa_lockout.py` covers the lock-state logic with
+  `sb_request` mocked (not a live-Supabase test).
+- **No idempotency key on `/api/generate`**, so a retried request (client retry, double
+  network delivery) could bill and submit twice. Added an optional `idempotencyKey` field;
+  when present and Supabase persistence is configured, the gateway looks up an existing job
+  by (user, key) via the `request->>idempotencyKey` jsonb path (no new column/migration
+  needed — the key was already stored in the persisted request payload) and replays that
+  job instead of billing again. Frontend (`src/main.jsx`) now generates one key per logical
+  generation call. This is best-effort, not a hard guarantee: there's no unique constraint
+  backing the lookup, so two requests racing past the check within the same short window
+  can still both land — closes the common retry case, not the theoretical race. Verified:
+  `tests/test_idempotent_generate.py` covers the persistence lookup call shape and an
+  ASGI-level replay of `/api/generate` with `persistence` mocked.
+
+### Not independently re-verified
+Same limitation as every other addendum in this document: this environment has no
+`fastapi`/`httpx`/`pyotp`/`pytest` installed and no network access to install them, so none
+of the new or updated tests above (`test_moderation.py`, `test_2fa_lockout.py`,
+`test_idempotent_generate.py`) have actually been executed here — only confirmed to
+`py_compile` cleanly and read line-by-line for correctness. Run the real suite
+(`pip install -r gateway/requirements.txt && python3 -m pytest tests/`) before treating this
+as verified. The `admin_2fa` schema migration (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
+also needs to be applied to any already-provisioned Supabase project — it will not appear
+automatically.

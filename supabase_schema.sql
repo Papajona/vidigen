@@ -123,8 +123,19 @@ alter table public.admin_audit_log enable row level security;
 create table if not exists public.admin_2fa (
   uid uuid primary key references auth.users (id) on delete cascade,
   secret text not null,          -- base32 TOTP secret; only ever read/written server-side
-  enrolled_at timestamptz not null default now()
+  enrolled_at timestamptz not null default now(),
+  -- Account-level brute-force lockout, additive to the gateway's IP-based rate limiter.
+  -- IP-based limiting alone is weak against a 6-digit TOTP code (1,000,000 combinations)
+  -- once an attacker can spread guesses across multiple source IPs; this makes the account
+  -- itself the thing that locks, regardless of how many IPs are used against it.
+  failed_attempts integer not null default 0,
+  locked_until timestamptz
 );
+-- Idempotent migration for deployments that already created admin_2fa before these two
+-- columns existed — `create table if not exists` above is a no-op on an existing table, so
+-- these ADD COLUMNs are what actually lands the lockout fields on an already-deployed DB.
+alter table public.admin_2fa add column if not exists failed_attempts integer not null default 0;
+alter table public.admin_2fa add column if not exists locked_until timestamptz;
 alter table public.admin_2fa enable row level security;
 -- No client-facing policies — an admin never reads their own raw TOTP secret back over
 -- the API after enrollment; the QR/manual-entry code is shown once, at enrollment time,

@@ -1,0 +1,10 @@
+{
+	"appId": "ai.vidigen.studio",
+	"appName": "Vidigen AI",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#000000"
+	}
+}
