@@ -498,7 +498,8 @@ function App(){
       </div>
     </div>}
     <button className="primary" onClick={()=>setShowSettings(false)}>Done</button>
-  </div></div>  {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
+  </div></div>}
+  {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
   {showAuth&&<CustomerAuthScreen
     onAuthenticated={(accessToken)=>{setToken(accessToken);setShowAuth(false);setStatus('Signed in successfully.');}}
     onClose={()=>setShowAuth(false)}
