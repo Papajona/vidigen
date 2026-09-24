@@ -7,7 +7,7 @@ import {supabase, supabaseConfigured} from './supabaseClient.js';
  * Supabase-verified user_id — this is what actually gets a real customer one, rather than
  * expecting them to paste a raw access token into a settings field.
  */
-export default function CustomerAuthScreen({onAuthenticated}) {
+export default function CustomerAuthScreen({onAuthenticated, onClose}) {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,12 +75,10 @@ export default function CustomerAuthScreen({onAuthenticated}) {
   return (
     <div className="modalBack">
       <div className="modal">
-        <div className="modalHead"><b>{mode === 'signup' ? 'Create your account' : 'Sign in'}</b></div>
+        <div className="modalHead"><b>{mode === 'signup' ? 'Create your account' : 'Sign in'}</b><button className="secondary" type="button" aria-label="Close sign-in dialog" onClick={onClose}>×</button></div>
         <p>{mode === 'signup' ? 'Free accounts include 500 MB storage, 5 avatar generations/day and 5 photo enhancements/day.' : 'Welcome back.'}</p>
 
-        <button className="primary" onClick={handleGoogle} style={{marginBottom: 12}}>
-          Continue with Google
-        </button>
+        <p className="muted" style={{marginBottom: 12}}>Sign in with your email and password. Google sign-in will be available after Google OAuth is enabled in Supabase.</p>
 
         <form onSubmit={handleEmailAuth}>
           <label>Email</label>
