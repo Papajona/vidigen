@@ -6,6 +6,25 @@ import os, httpx, time, asyncio
 class GenerationResult:
     provider:str; job_id:str; status:str; output_url:str|None=None; raw:dict[str,Any]|None=None
 class ProviderError(RuntimeError): pass
+def _output_url(data: dict) -> str | None:
+    out=data.get('output')
+    if isinstance(out,str): return out
+    if isinstance(out,list) and out and isinstance(out[0],str): return out[0]
+    for key in ('output_url','outputUrl','url','video_url','videoUrl','result_url','resultUrl'):
+        value=data.get(key)
+        if isinstance(value,str) and value: return value
+    return None
+
+def _status_url(data: dict) -> str | None:
+    urls=data.get('urls') or {}
+    for key in ('get','status'):
+        value=urls.get(key) if isinstance(urls,dict) else None
+        if isinstance(value,str) and value: return value
+    for key in ('status_url','statusUrl','status_endpoint','statusEndpoint'):
+        value=data.get(key)
+        if isinstance(value,str) and value: return value
+    return None
+
 class ReplicateProvider:
     name='replicate'
     def __init__(self): self.token=os.getenv('REPLICATE_API_TOKEN',''); self.model=os.getenv('REPLICATE_MODEL','')
@@ -14,24 +33,34 @@ class ReplicateProvider:
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post(f'https://api.replicate.com/v1/models/{self.model}/predictions',headers={'Authorization':f'Bearer {self.token}','Content-Type':'application/json'},json={'input':request.get('input',request)})
         if r.status_code>=400: raise ProviderError(f'Replicate rejected the request ({r.status_code}).')
-        d=r.json(); out=d.get('output'); out_url=out if isinstance(out,str) else (out[0] if isinstance(out,list) and out and isinstance(out[0],str) else None); return GenerationResult(self.name,str(d.get('id','')),str(d.get('status','starting')),out_url,d)
-    async def status(self,job_id):
+        d=r.json(); return GenerationResult(self.name,str(d.get('id','')),str(d.get('status','starting')),_output_url(d),d)
+    async def status(self,job_id,status_url=None):
         if not self.token: raise ProviderError('Replicate is not configured.')
         async with httpx.AsyncClient(timeout=20,follow_redirects=False) as c:
-            r=await c.get(f'https://api.replicate.com/v1/predictions/{job_id}',headers={'Authorization':f'Bearer {self.token}'})
+            r=await c.get(status_url or f'https://api.replicate.com/v1/predictions/{job_id}',headers={'Authorization':f'Bearer {self.token}'})
         if r.status_code>=400: raise ProviderError(f'Replicate status failed ({r.status_code}).')
-        d=r.json(); out=d.get('output'); out_url=out if isinstance(out,str) else (out[0] if isinstance(out,list) and out and isinstance(out[0],str) else None); return GenerationResult(self.name,job_id,str(d.get('status','unknown')),out if isinstance(out,str) else None,d)
+        d=r.json(); return GenerationResult(self.name,job_id,str(d.get('status','unknown')),_output_url(d),d)
 class ConfiguredHTTPProvider:
-    def __init__(self,name,url_env,token_env): self.name=name; self.url_env=url_env; self.token_env=token_env
+    def __init__(self,name,url_env,token_env,status_url_env=None): self.name=name; self.url_env=url_env; self.token_env=token_env; self.status_url_env=status_url_env
     async def submit(self,request):
         url,token=os.getenv(self.url_env,''),os.getenv(self.token_env,'')
         if not url or not token: raise ProviderError(f'{self.name} is not configured on the server.')
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
             r=await c.post(url,headers={'Authorization':f'Bearer {token}','Content-Type':'application/json'},json=request)
         if r.status_code>=400: raise ProviderError(f'{self.name} rejected the request ({r.status_code}).')
-        d=r.json(); return GenerationResult(self.name,str(d.get('id') or d.get('job_id') or ''),str(d.get('status','queued')),d.get('output_url'),d)
-    async def status(self,job_id): raise ProviderError(f'{self.name} status polling is not configured.')
-PROVIDERS={'replicate':ReplicateProvider(),'seedance':ConfiguredHTTPProvider('seedance','SEEDANCE_API_URL','SEEDANCE_API_TOKEN'),'runway':ConfiguredHTTPProvider('runway','RUNWAY_API_URL','RUNWAY_API_TOKEN')}
+        d=r.json(); return GenerationResult(self.name,str(d.get('id') or d.get('job_id') or d.get('task_id') or ''),str(d.get('status','queued')),_output_url(d),d)
+    async def status(self,job_id,status_url=None):
+        url=''
+        if status_url: url=status_url.replace('{id}',str(job_id))
+        elif self.status_url_env: url=os.getenv(self.status_url_env,'').replace('{id}',str(job_id))
+        if not url: raise ProviderError(f'{self.name} status polling is not configured. Set {self.status_url_env or self.name.upper()+"_STATUS_URL_TEMPLATE"}.')
+        token=os.getenv(self.token_env,'')
+        if not token: raise ProviderError(f'{self.name} is not configured on the server.')
+        async with httpx.AsyncClient(timeout=20,follow_redirects=False) as c:
+            r=await c.get(url,headers={'Authorization':f'Bearer {token}'})
+        if r.status_code>=400: raise ProviderError(f'{self.name} status failed ({r.status_code}).')
+        d=r.json(); return GenerationResult(self.name,job_id,str(d.get('status','unknown')),_output_url(d),d)
+PROVIDERS={'replicate':ReplicateProvider(),'seedance':ConfiguredHTTPProvider('seedance','SEEDANCE_API_URL','SEEDANCE_API_TOKEN','SEEDANCE_STATUS_URL_TEMPLATE'),'runway':ConfiguredHTTPProvider('runway','RUNWAY_API_URL','RUNWAY_API_TOKEN','RUNWAY_STATUS_URL_TEMPLATE')}
 
 # --- Background removal (image + video) -------------------------------------------------
 # Kept independent of ReplicateProvider above deliberately: that class is hardcoded to a
