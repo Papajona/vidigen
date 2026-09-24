@@ -103,8 +103,10 @@ jobs:
           DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
           URL="$DEPLOYED_URL"
+          PUBLIC_URL="https://api.vidigen.online"
           REVISION=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.latestReadyRevisionName)")
-          echo "Deployed URL: $URL"
+          echo "Deployed default URL: $URL"
+          echo "Production gateway URL: $PUBLIC_URL"
           echo "Ready revision: $REVISION"
           gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(status.url,status.traffic,status.latestReadyRevisionName)"
           echo "Container-local health:"
@@ -117,18 +119,19 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:18080/healthz
           docker rm -f vidigen-gateway-smoke >/dev/null 2>&1 || true
           echo
-          echo "Public service health:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/healthz"
+          echo "Production gateway health:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/healthz"
           echo
-          echo "Public FastAPI route:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/docs" >/dev/null
+          echo "Production FastAPI route:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/docs" >/dev/null
           echo "FastAPI docs route: OK"
-          echo "Custom gateway domain health (non-blocking):"
-          curl --silent --show-error --retry 3 --retry-delay 2 "https://api.vidigen.online/healthz" || echo "api.vidigen.online is not serving yet."
           echo
           echo "Authenticated gateway health:"
           GATEWAY_TOKEN=$(gcloud secrets versions access latest --secret=vidigen-gateway-token)
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$URL/health"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/health"
           echo
           echo "Provider runtime status:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$URL/api/providers"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/api/providers"
+          echo
+          echo "Default Cloud Run URL (informational only):"
+          curl --silent --show-error --retry 3 --retry-delay 2 "$URL/healthz" || echo "Default run.app URL is not directly serving /healthz; production traffic uses api.vidigen.online."
