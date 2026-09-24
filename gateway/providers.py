@@ -363,9 +363,12 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         self.submit_method = str(spec.get("submit_method", "POST")).upper()
         self.status_method = str(spec.get("status_method", "GET")).upper()
         self.request_template = spec.get("request_template")
+        self.request_templates = spec.get("request_templates") or {}
         self.models = spec.get("models") or {}
         self.default_model = str(spec.get("default_model", self.name)).strip()
         self.response = spec.get("response") or {}
+        self.submit_urls = spec.get("submit_urls") or {}
+        self.status_urls = spec.get("status_urls") or {}
         self.extra_headers = {
             str(k): str(v) for k, v in (spec.get("extra_headers") or {}).items()
             if isinstance(k, str)
@@ -406,12 +409,15 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             "model": model,
             "resolution": payload.get("resolution", "720p"),
             "generate_audio": bool(payload.get("generate_audio", True)),
+            "operation": _operation_capability(payload.get("mode")),
         }
 
     def prepare(self, payload: dict) -> dict[str, Any]:
         model = self.model_for(payload)
         context = self._build_context(payload, model)
-        if self.request_template is None:
+        operation = context["operation"]
+        template = self.request_templates.get(operation) or self.request_template
+        if template is None:
             body = {
                 "prompt": payload.get("prompt", ""),
                 "model": model,
@@ -423,8 +429,15 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             if payload.get("sourceUrl"):
                 body["source_url"] = payload["sourceUrl"]
         else:
-            body = _render_template(self.request_template, context)
-        return {"input": body, "model": model}
+            body = _render_template(template, context)
+        submit_url = self.submit_urls.get(operation) or self.submit_url
+        status_template = self.status_urls.get(operation) or self.status_url_template
+        return {
+            "input": body,
+            "model": model,
+            "_submit_url": submit_url,
+            "_status_url_template": status_template,
+        }
 
     def _headers(self) -> dict[str, str]:
         token = os.getenv(self.token_env, "") if self.token_env else ""
@@ -468,7 +481,8 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         if not self.configured():
             raise ProviderError(f"{self.name} is not configured on the server.")
         context = {"model": request.get("model", self.default_model)}
-        url = _render_template(self.submit_url, context)
+        submit_url = request.get("_submit_url") or self.submit_url
+        url = _render_template(submit_url, context)
         url = self._auth_url(url)
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
             try:
@@ -519,6 +533,8 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         raw = dict(data)
         if status_url:
             raw["status_url"] = status_url
+        elif request.get("_status_url_template"):
+            raw["status_url"] = request["_status_url_template"]
         return GenerationResult(self.name, str(job_id), str(status), output, raw)
 
     async def status(self, job_id, status_url=None):
