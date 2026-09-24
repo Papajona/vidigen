@@ -1197,7 +1197,7 @@ async def edit_plan(req:EditPlan,request:Request,_=Depends(auth)):
 @app.post('/api/export-plan')
 async def export_plan(req:ExportPlan,request:Request,_=Depends(auth)):
     duration=round(sum(max(0,float(c.get('trimEnd',c.get('duration',5)))-float(c.get('trimStart',0))) for c in req.clips),2)
-    return {'ok':True,'message':f'Render plan ready: {len(req.clips)} clips, {duration}s, {req.ratio}, {req.captionCount} caption segments, audio={req.hasAudio}. Connect a native FFmpeg/MediaCodec worker to produce the master file.','render':{'codec':'h264','audio':'aac','ratio':req.ratio,'duration':duration}}
+    return {'ok':True,'message':f'Export plan validated: {len(req.clips)} clips, {duration}s, {req.ratio}, {req.captionCount} caption segments, audio={req.hasAudio}. Use /api/render for the authenticated browser/server MP4 render path or the native Android exporter for native projects.','render':{'codec':'h264','audio':'aac','ratio':req.ratio,'duration':duration}}
 
 @app.post('/api/captions')
 async def captions(request:Request, file:UploadFile=File(...), _=Depends(auth)):
