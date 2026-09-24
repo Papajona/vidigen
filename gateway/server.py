@@ -1482,15 +1482,19 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         billing_receipt=await _bill_generation(user, req)
         request_payload['_billing']=billing_receipt
         provider=PROVIDERS[provider_name]
+        job_id=None
         try:
             job_id=await persistence.create_job(user_id,None,provider_name,os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,request_payload) if user_id and persistence.enabled() else None
+        except Exception as e:
+            try:
+                from gateway.billing import refund_credits, refund_free_daily_feature
+                billing=request_payload.get('_billing',{})
+                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'job_persistence_failure',{'provider':provider_name})
+                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+            except Exception: log.exception('Credit/daily-usage refund failed after job persistence error')
+            raise HTTPException(503,'Generation job could not be created.')
+        try:
             result=await provider.submit({'input':request_payload.get('input',request_payload)})
-            external_id=result.job_id
-            cache_id=job_id or external_id
-            request_payload['_external_id']=external_id
-            JOB_CACHE[cache_id]={'provider':provider_name,'external_id':external_id,'user_id':user_id,'request':request_payload}
-            if job_id and persistence.enabled(): await persistence.update_job(job_id,status='processing',request=request_payload)
-            return {'promptId':cache_id,'provider':provider_name,'status':result.status,'externalJobId':external_id}
         except ProviderError as e:
             try:
                 from gateway.billing import refund_credits, refund_free_daily_feature
@@ -1500,6 +1504,26 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             except Exception: log.exception('Credit/daily-usage refund failed after provider error')
             if job_id and persistence.enabled(): await persistence.update_job(job_id,status='failed',error=str(e))
             raise HTTPException(503,str(e))
+        except Exception as e:
+            log.exception('Unexpected generation provider failure')
+            try:
+                from gateway.billing import refund_credits, refund_free_daily_feature
+                billing=request_payload.get('_billing',{})
+                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'provider_unexpected_failure',{'provider':provider_name})
+                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+            except Exception: log.exception('Credit/daily-usage refund failed after unexpected provider error')
+            if job_id and persistence.enabled():
+                try: await persistence.update_job(job_id,status='failed',error='Unexpected provider failure')
+                except Exception: log.exception('Failed to mark generation job failed')
+            raise HTTPException(503,'Generation provider request failed. Please try again.')
+        external_id=result.job_id
+        cache_id=job_id or external_id
+        request_payload['_external_id']=external_id
+        JOB_CACHE[cache_id]={'provider':provider_name,'external_id':external_id,'user_id':user_id,'request':request_payload}
+        if job_id and persistence.enabled():
+            try: await persistence.update_job(job_id,status='processing',request=request_payload)
+            except Exception: log.exception('Generation job was submitted but persistence status update failed')
+        return {'promptId':cache_id,'provider':provider_name,'status':result.status,'externalJobId':external_id}
     # Local ComfyUI path.
     if not WORKFLOW.exists(): raise HTTPException(503,'workflow_api.json is missing. Export an API-format workflow from ComfyUI.')
     billing_receipt=await _bill_generation(user, req)
