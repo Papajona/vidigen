@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/diagnose-cloudflare-dns.yml"
+      - ".github/workflows/diagnose-cloudflare-dns.yml"\n      - "worker.js"\n      - "wrangler.jsonc"
   workflow_dispatch: {}
 
 jobs:
