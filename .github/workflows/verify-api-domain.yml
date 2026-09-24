@@ -13,7 +13,11 @@ jobs:
         run: |
           set -euo pipefail
           code="$(curl --silent --show-error --location --retry 8 --retry-delay 3 -o /tmp/api-docs.html -w "%{http_code}" https://api.vidigen.online/docs)"
+          echo "HTTP_CODE=$code"
+          echo "RESPONSE_HEAD:"
+          head -c 1200 /tmp/api-docs.html || true
+          echo
           test "$code" = "200"
-          grep -q "FastAPI" /tmp/api-docs.html
+          grep -qi "FastAPI" /tmp/api-docs.html
           echo "API_CUSTOM_DOMAIN_VERIFIED"
           echo "https://api.vidigen.online is serving the production FastAPI gateway."
