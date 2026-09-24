@@ -121,8 +121,8 @@ def _provider_candidates(requested: str, req: Any) -> list[str]:
         return []
     if requested in PROVIDERS:
         provider = PROVIDERS[requested]
-        configured=getattr(provider, 'configured', None)
-        if callable(configured) and not configured():
+        is_configured=getattr(provider, 'configured', None)
+        if callable(is_configured) and not is_configured():
             raise HTTPException(503, f'{requested.title()} is not configured on the gateway.')
         supports=getattr(provider, 'supports', None)
         if callable(supports) and not supports(capability):
