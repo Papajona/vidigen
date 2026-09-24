@@ -195,12 +195,16 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/health"
 
           echo
+          echo "Production provider runtime status:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/api/providers"
+
+          echo
           echo "Production FastAPI route:"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/docs" >/dev/null
           echo "FastAPI docs route: OK"
           echo
           echo "Custom gateway domain (best effort):"
-          if curl --silent --show-error --fail --retry 3 --retry-delay 2 "https://api.vidigen.online/health" >/tmp/custom-health.txt 2>/tmp/custom-health.err; then
+          if curl --silent --show-error --fail --retry 3 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "https://api.vidigen.online/health" >/tmp/custom-health.txt 2>/tmp/custom-health.err; then
             cat /tmp/custom-health.txt
             echo "api.vidigen.online: reachable"
           else
