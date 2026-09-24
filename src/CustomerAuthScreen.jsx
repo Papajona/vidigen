@@ -76,7 +76,7 @@ export default function CustomerAuthScreen({onAuthenticated}) {
     <div className="modalBack">
       <div className="modal">
         <div className="modalHead"><b>{mode === 'signup' ? 'Create your account' : 'Sign in'}</b></div>
-        <p>{mode === 'signup' ? 'New accounts start with 50 free credits.' : 'Welcome back.'}</p>
+        <p>{mode === 'signup' ? 'Free accounts include 500 MB storage, 5 avatar generations/day and 5 photo enhancements/day.' : 'Welcome back.'}</p>
 
         <button className="primary" onClick={handleGoogle} style={{marginBottom: 12}}>
           Continue with Google
