@@ -371,45 +371,51 @@ function App(){
  }
  async function generate(){
    if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
+   if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
    const requiredSourceType=generationSourceTypeForMode();
    if(requiredSourceType==='image' && generationSource?.type && generationSource.type!=='image'){setStatus('Choose an image source for Image → Video.');return}
    if(requiredSourceType==='video' && generationSource?.type && generationSource.type!=='video'){setStatus('Choose a video source for Video → Video.');return}
-   if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
-   const parsed=normalizeRequest(prompt);if(parsed.riskFlags.length){setStatus('Blocked: '+parsed.riskFlags.join(', '));return}
-   let timelineSource=null;
-   let sourceType=null;
-   if(requiredSourceType){
-     if(generationSource?.file){
-       timelineSource=await uploadBlobForRender(generationSource.file,'generation-src/'+Date.now()+'-'+Math.random().toString(36).slice(2)+(generationSource.type==='image'?'.jpg':'.mp4'),generationSource.file.type||'application/octet-stream');
-       sourceType=generationSource.type;
-     }else if(current?.src){
-       if(!isImageMedia(current) && requiredSourceType==='image'){setStatus('Select an image or upload one for Image → Video.');return}
-       if(isImageMedia(current) && requiredSourceType==='video'){setStatus('Select a video or upload one for Video → Video.');return}
-       timelineSource=await prepareGenerationSource(current.src,requiredSourceType);
-       sourceType=requiredSourceType;
-     }else{
-       setStatus('Upload or select a '+requiredSourceType+' source before generating.');return
+   const parsed=normalizeRequest(prompt);
+   if(parsed.riskFlags.length){setStatus('Blocked: '+parsed.riskFlags.join(', '));return}
+   setGenerating(true);setProgress(0);
+   try{
+     let timelineSource=null;
+     let sourceType=null;
+     if(requiredSourceType){
+       if(generationSource?.file){
+         const file=generationSource.file;
+         const mime=file.type||'application/octet-stream';
+         const ext=mime.includes('png')?'.png':mime.includes('webp')?'.webp':mime.includes('jpeg')||mime.includes('jpg')?'.jpg':mime.includes('mp4')?'.mp4':mime.includes('webm')?'.webm':(requiredSourceType==='image'?'.jpg':'.mp4');
+         setStatus('Uploading source media…');
+         timelineSource=await uploadBlobForRender(file,'generation-src/'+Date.now()+'-'+Math.random().toString(36).slice(2)+ext,mime);
+         sourceType=generationSource.type;
+       }else if(current?.src){
+         if(!isImageMedia(current) && requiredSourceType==='image'){throw new Error('Select an image or upload one for Image → Video.')}
+         if(isImageMedia(current) && requiredSourceType==='video'){throw new Error('Select a video or upload one for Video → Video.')}
+         timelineSource=await prepareGenerationSource(current.src,requiredSourceType);
+         sourceType=requiredSourceType;
+       }else{
+         throw new Error('Upload or select a '+requiredSourceType+' source before generating.');
+       }
      }
-   }
-   setGenerating(true);setProgress(0);let activeProfile=brainProfile;
-   try{
-     if(token&&online){const rp=await gatewayFetch(gateway,'/api/brain/profile',{},token);activeProfile=await rp.json();setBrainProfile(activeProfile)}
-   }catch{}
-   const scenes=makeScenes(activeProfile);
-   try{
+     let activeProfile=brainProfile;
+     try{
+       if(token&&online){const rp=await gatewayFetch(gateway,'/api/brain/profile',{},token);activeProfile=await rp.json();setBrainProfile(activeProfile)}
+     }catch{}
+     const scenes=makeScenes(activeProfile);
      const out=[];
      for(let i=0;i<scenes.length;i++){
        setStatus('AI Director • generating shot '+(i+1)+'/'+scenes.length);
        const s=scenes[i];
        const r=await generateScene(gateway,token,{prompt:s.prompt,mode,ratio,duration:s.duration+'s',scene:s,sourceUrl:timelineSource,sourceType,model,tags:parsed.tags},st=>setProgress(Math.round(((i+(st.status==='running'?0.5:1))/scenes.length)*100)));
-       out.push({...s,...DEFAULT_CLIP,videoUrl:r.url,src:r.url,jobId:r.jobId,track:'Video',mediaType:mode==='Text → Image'?'image':'video',kind:mode==='Text → Image'?'AI image':'AI video',title:'Shot '+(i+1)})
+       out.push({...s,...DEFAULT_CLIP,videoUrl:r.url,src:r.url,jobId:r.jobId,track:'Video',mediaType:mode==='Text → Image'?'image':'video',kind:mode==='Text → Image'?'AI image':'AI video',title:'Shot '+(i+1)});
      }
      replaceClips([...clips,...out]);setActiveId(out[0].id);
      const rec={id:Date.now(),prompt,mode,model,jobId:out[0].jobId,timestamp:new Date().toISOString(),rating:0,tags:parsed.tags,success:true};
      if(validateMemoryRecord(rec))setHistory(h=>[rec,...h].slice(0,500));
      setProjects(p=>[{id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))},...p].slice(0,50));
-     setStatus('Complete • '+out.length+' shot'+(out.length>1?'s':'')+' added to timeline.');setProgress(100)
-   }catch(e){setStatus(e.message)}
+     setStatus('Complete • '+out.length+' shot'+(out.length>1?'s':'')+' added to timeline.');setProgress(100);
+   }catch(e){setStatus(e?.message||'Generation failed.')}
    finally{setGenerating(false)}
  }
  async function runAICommand(){if(!aiCommand.trim())return;setCommandBusy(true);setStatus('AI Editor is translating your instruction…');try{const r=await gatewayFetch(gateway,'/api/edit-plan',{method:'POST',body:JSON.stringify({command:aiCommand,clips:clips.map(c=>({id:c.id,title:c.title,duration:c.duration,track:c.track,trimStart:c.trimStart,trimEnd:c.trimEnd})),ratio})},token);const plan=await r.json();if(plan.operations?.length){applyOperations(plan.operations);setStatus(`${plan.engine==='groq'?'Groq':'Keyword'} editor applied ${plan.operations.length} timeline operation${plan.operations.length>1?'s':''}.`)}else setStatus('No safe timeline change was identified.');}catch{const q=aiCommand.toLowerCase();if(q.includes('delete')&&activeClip){deleteClip();setStatus('AI Editor deleted the selected clip.')}else if(q.includes('duplicate')&&activeClip){duplicateClip();setStatus('AI Editor duplicated the selected clip.')}else if(q.includes('split')&&activeClip){splitClip()}else setStatus('AI Editor needs the gateway edit planner for this instruction.')}finally{setCommandBusy(false);setAiCommand('')}}
