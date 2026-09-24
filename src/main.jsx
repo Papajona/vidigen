@@ -29,7 +29,6 @@ const MODES=['Text → Video','Image → Video','Video → Video','Text → Imag
 const CAMERA_MOVES=['Auto (let the model choose)','Static shot','Slow push in','Pull out','Pan left','Pan right','Tilt up','Tilt down','Orbit around subject','Handheld','Aerial / drone','Dolly tracking shot'];
 const RATIOS=['16:9','9:16','1:1','4:5','21:9'];
 const DURATIONS=['4s','5s','8s','10s','15s','30s','60s'];
-const MODELS=[['auto','Auto Router'],['replicate','Replicate'],['seedance','Seedance'],['runway','Runway'],['local','ComfyUI']];
 
 const DEFAULT_CLIP={trimStart:0,trimEnd:5,speed:1,volume:1,brightness:100,contrast:100,saturation:100,blur:0,rotation:0,scale:100,opacity:100,keyframes:[]};
 const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch{return f}};
@@ -386,7 +385,8 @@ function App(){
 
  const filter=`brightness(${editor.brightness}%) contrast(${editor.contrast}%) saturate(${editor.saturation}%) blur(${editor.blur}px)`;
  const isImageMedia=(c)=>!!c&&(c.mediaType==='image'||String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||'')));
- const availableModels=providerInfo?.providers?.length?MODELS.filter(([id])=>id==='auto'||providerInfo.providers.some(p=>p.key===id&&p.configured)):MODELS.filter(([id])=>id==='auto');
+ const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
+ const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\\b\\w/g,m=>m.toUpperCase())]))];
  return <div className="app">
   <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="share" onClick={()=>setStatus('Project link sharing is available when persistence/auth is configured.')}>Share</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
   <div className="editor">
