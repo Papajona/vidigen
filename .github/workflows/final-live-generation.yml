@@ -1,0 +1,127 @@
+name: Final live generation verification
+
+on:
+  push:
+    paths:
+      - ".github/workflows/final-live-generation.yml"
+
+jobs:
+  live_generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      GATEWAY_URL: https://api.vidigen.online
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Prepare production credentials
+        run: |
+          set -euo pipefail
+          key="$(gcloud secrets versions access latest --secret=supabase-service-role-key)"
+          echo "::add-mask::$key"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Execute one controlled real generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          USER_ID=""
+          cleanup() {
+            set +e
+            if [ -n "$USER_ID" ]; then
+              for table in credit_transactions generation_jobs credit_wallets subscriptions payments payment_events; do
+                curl --silent --show-error --fail-with-body -X DELETE                   "$SUPABASE_URL/rest/v1/$table?user_id=eq.$USER_ID"                   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"                   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"                   -H "Prefer: return=minimal" >/dev/null 2>&1 || true
+              done
+              curl --silent --show-error --fail-with-body -X DELETE                 "$SUPABASE_URL/auth/v1/admin/users/$USER_ID"                 -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"                 -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          TS="$(date +%s)"
+          EMAIL="vidigen-final-smoke-$TS@example.com"
+          PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$PASSWORD"
+
+          jq -n --arg email "$EMAIL" --arg password "$PASSWORD"             '{email:$email,password:$password,email_confirm:true}' > /tmp/create-user.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/admin/users"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             --data-binary @/tmp/create-user.json > /tmp/user.json
+
+          USER_ID="$(jq -r '.id' /tmp/user.json)"
+          test -n "$USER_ID" && test "$USER_ID" != "null"
+
+          jq -n --arg email "$EMAIL" --arg password "$PASSWORD"             '{email:$email,password:$password}' > /tmp/login.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password"             -H "apikey: $SUPABASE_ANON_KEY"             -H "Content-Type: application/json"             --data-binary @/tmp/login.json > /tmp/session.json
+
+          TOKEN="$(jq -r '.access_token' /tmp/session.json)"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "::add-mask::$TOKEN"
+
+          PRICE="$(curl --silent --show-error --fail-with-body             "$SUPABASE_URL/rest/v1/ai_model_prices?model_key=eq.bytedance%2Fseedance-2.0&operation=eq.video&select=credits_per_5s&limit=1"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" | jq -r '.[0].credits_per_5s // 110')"
+          case "$PRICE" in ''|*[!0-9]*) echo "Invalid price: $PRICE"; exit 1;; esac
+
+          jq -n --arg uid "$USER_ID" --argjson credits "$PRICE"             '{user_id:$uid,balance:$credits,monthly_allowance:$credits}' > /tmp/wallet.json
+          curl --silent --show-error --fail-with-body             -X POST "$SUPABASE_URL/rest/v1/credit_wallets?on_conflict=user_id"             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY"             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"             -H "Content-Type: application/json"             -H "Prefer: resolution=merge-duplicates,return=representation"             --data-binary @/tmp/wallet.json >/tmp/wallet-response.json
+
+          echo "Runtime provider state:"
+          curl --silent --show-error --fail-with-body             -H "Authorization: Bearer $TOKEN" "$GATEWAY_URL/api/providers" | tee /tmp/providers.json
+
+          KEY="final-live-$TS-$(openssl rand -hex 8)"
+          PROMPT="Create a premium cinematic 5-second commercial product shot of a sleek futuristic portable power station on a minimalist studio table, realistic materials, soft cinematic lighting, controlled slow camera push-in, polished advertising finish, no text or logos."
+
+          jq -n             --arg prompt "$PROMPT"             --arg key "$KEY"             '{
+              prompt:$prompt,
+              mode:"Text → Video",
+              ratio:"16:9",
+              duration:"5s",
+              scene:{duration:5,prompt:$prompt,camera:"Slow push in"},
+              sourceUrl:null,
+              model:"replicate",
+              tags:["live-smoke","production","cinematic"],
+              idempotencyKey:$key
+            }' > /tmp/generate-request.json
+
+          echo "Submitting exactly one real production generation..."
+          HTTP_STATUS="$(curl --silent --show-error --location             -o /tmp/generate-response.json             -w "%{http_code}"             -X POST "$GATEWAY_URL/api/generate"             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             --data-binary @/tmp/generate-request.json)"
+          echo "Generation HTTP status: $HTTP_STATUS"
+          cat /tmp/generate-response.json
+          echo
+
+          test "$HTTP_STATUS" = "200"
+
+          PROMPT_ID="$(jq -r '.promptId // empty' /tmp/generate-response.json)"
+          PROVIDER="$(jq -r '.provider // empty' /tmp/generate-response.json)"
+          test -n "$PROMPT_ID"
+          echo "Accepted by provider=$PROVIDER job=$PROMPT_ID"
+
+          OUTPUT_URL=""
+          STATUS=""
+          for i in $(seq 1 90); do
+            sleep 10
+            curl --silent --show-error --fail-with-body               "$GATEWAY_URL/api/status/$PROMPT_ID"               -H "Authorization: Bearer $TOKEN" > /tmp/status.json
+            STATUS="$(jq -r '.status // empty' /tmp/status.json)"
+            OUTPUT_URL="$(jq -r '.videoUrl // .outputUrl // empty' /tmp/status.json)"
+            echo "Poll $i/90: status=$STATUS"
+            [ -n "$OUTPUT_URL" ] && break
+            [ "$STATUS" = "error" ] && { cat /tmp/status.json; exit 1; }
+          done
+
+          test -n "$OUTPUT_URL"
+          curl --silent --show-error --fail --location --range 0-0             -o /tmp/generated-probe "$OUTPUT_URL"
+          test -s /tmp/generated-probe
+
+          echo "LIVE_GENERATION_VERIFIED"
+          echo "provider=$PROVIDER"
+          echo "credits_used=$PRICE"
+          echo "job_id=$PROMPT_ID"
+          echo "output_bytes=$(wc -c </tmp/generated-probe)"
