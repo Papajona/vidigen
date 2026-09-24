@@ -334,6 +334,58 @@ grant execute on function public.consume_credits_atomic(uuid,integer) to service
 grant execute on function public.refund_credits_atomic(uuid,integer) to service_role;
 grant execute on function public.grant_subscription_credits_atomic(uuid,integer,integer) to service_role;
 
+-- Free-plan daily entitlements: five avatar generations and five photo enhancements per UTC day.
+create table if not exists public.daily_feature_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  usage_date date not null default current_date,
+  feature text not null check (feature in ('avatar','photo_enhance')),
+  count integer not null default 0 check (count >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, usage_date, feature)
+);
+alter table public.daily_feature_usage enable row level security;
+create policy "own daily feature usage" on public.daily_feature_usage for select using (auth.uid()=user_id);
+create index if not exists daily_feature_usage_user_date_idx on public.daily_feature_usage(user_id, usage_date desc);
+
+create or replace function public.consume_daily_feature_atomic(p_user_id uuid, p_feature text, p_limit integer)
+returns table(new_count integer)
+language plpgsql
+security definer
+set search_path=public
+as $
+begin
+  if p_limit < 1 then raise exception 'daily limit must be positive'; end if;
+  insert into public.daily_feature_usage(user_id,usage_date,feature,count)
+  values(p_user_id,current_date,p_feature,1)
+  on conflict(user_id,usage_date,feature) do update
+    set count=public.daily_feature_usage.count+1, updated_at=now()
+    where public.daily_feature_usage.count < p_limit;
+  return query
+    select count from public.daily_feature_usage
+     where user_id=p_user_id and usage_date=current_date and feature=p_feature
+       and count <= p_limit;
+end;
+$;
+
+create or replace function public.release_daily_feature_atomic(p_user_id uuid, p_feature text)
+returns table(released boolean)
+language plpgsql
+security definer
+set search_path=public
+as $
+begin
+  update public.daily_feature_usage
+     set count=greatest(count-1,0), updated_at=now()
+   where user_id=p_user_id and usage_date=current_date and feature=p_feature;
+  return query select true;
+end;
+$;
+
+revoke all on function public.consume_daily_feature_atomic(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.release_daily_feature_atomic(uuid,text) from public,anon,authenticated;
+grant execute on function public.consume_daily_feature_atomic(uuid,text,integer) to service_role;
+grant execute on function public.release_daily_feature_atomic(uuid,text) to service_role;
+
 -- Backup & Rollback metadata. The actual snapshot data lives in R2 (as one JSON file per
 -- backup) — this table just tracks what exists and its provenance.
 create table if not exists public.backups (
