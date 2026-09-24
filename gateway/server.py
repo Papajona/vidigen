@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, HTMLResponse
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
-from gateway.providers import PROVIDERS, ProviderError
+from gateway.providers import PROVIDERS, ProviderError, configured_providers, provider_inventory, _operation_capability
 from gateway import persistence
 
 COMFY_URL=os.getenv('COMFY_URL','http://127.0.0.1:8188').rstrip('/')
@@ -91,30 +91,46 @@ SUPABASE_JWT_ISSUER=os.getenv('SUPABASE_JWT_ISSUER','').rstrip('/')
 SUPABASE_JWT_AUD=os.getenv('SUPABASE_JWT_AUD','authenticated')
 MAX_AUDIO_BYTES=int(os.getenv('VIDIGEN_MAX_AUDIO_BYTES','50000000'))
 
-SUPPORTED_CLOUD_PROVIDERS=('replicate','seedance','runway')
+def _provider_priority() -> list[str]:
+    return [
+        x.strip().lower()
+        for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY', 'replicate,seedance,runway').split(',')
+        if x.strip()
+    ]
 
-def _configured_provider_names() -> list[str]:
-    configured={
-        'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
-        'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
-        'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
-    }
-    priority=[x.strip().lower() for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY','replicate,seedance,runway').split(',') if x.strip()]
-    ordered=[]
-    for name in priority + list(SUPPORTED_CLOUD_PROVIDERS):
-        if name in SUPPORTED_CLOUD_PROVIDERS and configured.get(name) and name not in ordered:
+def _configured_provider_names(capability: str | None = None) -> list[str]:
+    configured = configured_providers(capability)
+    priority = _provider_priority()
+    ordered = []
+    for name in priority + configured:
+        if name in configured and name not in ordered:
             ordered.append(name)
     return ordered
 
-def _provider_candidates(requested: str) -> list[str]:
-    configured=_configured_provider_names()
+def _provider_candidates(requested: str, req: Generate) -> list[str]:
+    capability = _operation_capability(req.mode)
+    configured = _configured_provider_names(capability)
     if requested == 'auto':
         return configured
-    if requested in SUPPORTED_CLOUD_PROVIDERS:
-        if requested not in configured:
-            raise HTTPException(503,f'{requested.title()} is not configured on the gateway.')
-        return [requested]+[name for name in configured if name != requested]
-    return []
+    if requested == 'local':
+        return []
+    if requested in PROVIDERS:
+        provider = PROVIDERS[requested]
+        if not provider.configured():
+            raise HTTPException(503, f'{requested.title()} is not configured on the gateway.')
+        if not provider.supports(capability):
+            raise HTTPException(400, f'{requested.title()} does not advertise support for {capability}.')
+        return [requested] + [name for name in configured if name != requested]
+    raise HTTPException(400, f'Unknown provider: {requested}. Add it through the provider manifest or choose Auto.')
+
+def _prepare_provider_request(provider_name: str, payload: dict) -> dict[str, Any]:
+    provider = PROVIDERS[provider_name]
+    try:
+        return provider.prepare(payload)
+    except ProviderError:
+        raise
+    except Exception as exc:
+        raise ProviderError(f'{provider_name} could not prepare the generation request: {exc}') from exc
 
 
 def _is_image_mode(mode: str) -> bool:
@@ -627,11 +643,8 @@ async def admin_health(request: Request, _=Depends(require_admin)):
     """Same provider-configured checks as the public /api/providers, plus what that route
     intentionally omits: whether Supabase persistence and admin auth are actually working
     right now, not just whether their env vars are set."""
-    providers_status = {
-        'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
-        'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
-        'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
-    }
+    provider_rows=provider_inventory()
+    providers_status={p['key']:bool(p['configured']) for p in provider_rows}
     supabase_reachable = False
     if persistence.enabled():
         try:
@@ -769,12 +782,9 @@ async def admin_delete_user(uid: str, request: Request, user=Depends(require_adm
 async def admin_release_readiness(request: Request, _=Depends(require_admin)):
     """Deterministic production gate: reports only checks the gateway can actually verify."""
     import shutil
-    providers = {
-        'replicate': bool(os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL')),
-        'seedance': bool(os.getenv('SEEDANCE_API_URL') and os.getenv('SEEDANCE_API_TOKEN')),
-        'runway': bool(os.getenv('RUNWAY_API_URL') and os.getenv('RUNWAY_API_TOKEN')),
-        'local_comfyui': WORKFLOW.exists(),
-    }
+    provider_rows=provider_inventory()
+    providers={p['key']:bool(p['configured']) for p in provider_rows}
+    providers['local_comfyui']=WORKFLOW.exists()
     supabase_ok = False
     if persistence.enabled():
         try:
@@ -1487,15 +1497,18 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
 
 @app.get('/api/providers')
 async def providers(request:Request,_=Depends(auth)):
-    # Report actual execution readiness, not merely whether a single credential exists.
-    # Replicate requires both token + model; Seedance/Runway require URL + token.
-    providers=[
-        {'key':'replicate','capability':'video','configured':bool(os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL'))},
-        {'key':'seedance','capability':'video','configured':bool(os.getenv('SEEDANCE_API_URL') and os.getenv('SEEDANCE_API_TOKEN'))},
-        {'key':'runway','capability':'video','configured':bool(os.getenv('RUNWAY_API_URL') and os.getenv('RUNWAY_API_TOKEN'))},
-        {'key':'avatar-gateway','capability':'avatar','configured':bool(os.getenv('AVATAR_API_TOKEN'))},
-    ]
-    return {'providers':providers, 'production_policy':'Only configured providers are eligible for execution.', 'failover':'Configured video providers are tried in VIDIGEN_PROVIDER_PRIORITY order; accepted jobs can fail over during status polling without a second charge.'}
+    inventory=provider_inventory()
+    configured=[p['key'] for p in inventory if p['configured']]
+    priority=_provider_priority()
+    return {
+        'providers': inventory,
+        'configured_count': len(configured),
+        'configured_providers': configured,
+        'priority': [x for x in priority if x in configured] + [x for x in configured if x not in priority],
+        'production_policy':'Only configured providers that advertise the requested capability are eligible for execution.',
+        'failover':'Provider failover follows VIDIGEN_PROVIDER_PRIORITY and continues the same logical job without a second generation charge.',
+        'add_provider':'Add a provider manifest to VIDIGEN_PROVIDER_CONFIG_JSON and store its API secret in the referenced token_env variable. No frontend code change is required.',
+    }
 
 async def _bill_generation(user: dict | None, req: Generate) -> dict:
     from gateway.billing import consume_credits, enforce_free_daily_feature
@@ -1522,7 +1535,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         log.warning(f'Blocked prompt from user {(user or {}).get("sub","anon")}: {prompt_check.get("reason")}')
         raise HTTPException(422, f'This prompt was flagged and cannot be generated: {prompt_check.get("reason") or "policy violation"}')
     requested=(getattr(req,'model',None) or 'auto').lower() if hasattr(req,'model') else 'auto'
-    provider_candidates=_provider_candidates(requested)
+    provider_candidates=_provider_candidates(requested, req)
     user_id=(user or {}).get('sub') if user else None
     if req.idempotencyKey and user_id and persistence.enabled():
         # Return the existing job instead of billing/submitting again. Best-effort: a
@@ -1556,7 +1569,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                 user_id,
                 None,
                 provider_name,
-                os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                PROVIDERS[provider_name].model_for(req.model_dump()),
                 request_payload,
                 req.idempotencyKey
             ) if user_id and persistence.enabled() else None
@@ -1606,7 +1619,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=_replicate_model_for_payload(request_payload) if provider_name=='replicate' else provider_name,
+                        model=PROVIDERS[provider_name].model_for(request_payload),
                         status='queued',
                         error=None,
                     )
@@ -1614,14 +1627,9 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     log.exception('Failed to update generation job during provider failover')
 
             provider=PROVIDERS[provider_name]
-            if provider_name=='replicate':
-                provider_input=_replicate_input_for_payload(request_payload)
-                request_model=_replicate_model_for_payload(request_payload)
-            else:
-                provider_input=request_payload.get('input',request_payload)
-                request_model=provider_name
             try:
-                result=await provider.submit({'input':provider_input,'model':request_model})
+                prepared=_prepare_provider_request(provider_name, request_payload)
+                result=await provider.submit(prepared)
                 if not result.job_id: raise ProviderError(f'{provider_name.title()} returned no job ID.')
             except ProviderError as e:
                 last_error=str(e)
@@ -1659,7 +1667,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                        model=PROVIDERS[provider_name].model_for(request_payload),
                         status='processing',
                         request=request_payload
                     )
@@ -1794,8 +1802,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 for fallback_provider in next_candidates:
                     fallback=PROVIDERS[fallback_provider]
                     try:
-                        fallback_input=_replicate_input_for_payload(request_data) if fallback_provider=='replicate' else request_data.get('input',request_data)
-                        fallback_result=await fallback.submit({'input':fallback_input,'model':_replicate_model_for_payload(request_data) if fallback_provider=='replicate' else fallback_provider})
+                        fallback_result=await fallback.submit(_prepare_provider_request(fallback_provider, request_data))
                         if not fallback_result.job_id:
                             raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
                     except Exception as e:
@@ -1831,7 +1838,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                             await persistence.update_job(
                                 prompt_id,
                                 provider=fallback_provider,
-                                model=_replicate_model_for_payload(new_request) if fallback_provider=='replicate' else fallback_provider,
+                                model=PROVIDERS[fallback_provider].model_for(new_request),
                                 status='processing',
                                 request=new_request,
                                 error=None,
