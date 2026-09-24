@@ -498,3 +498,103 @@ label{color:rgba(244,246,251,.42);font-size:10px;letter-spacing:.06em;text-trans
 
 .paymentNote{margin-top:12px;padding:10px 12px;border:1px solid rgba(111,134,255,.1);border-radius:10px;background:rgba(111,134,255,.045)}
 .paymentNote span,.paymentNote small{display:block}.paymentNote span{font-size:11px;color:rgba(244,246,251,.7)}.paymentNote small{margin-top:3px;font-size:10px;color:rgba(244,246,251,.36);line-height:1.45}
+
+
+/* V14 — production creator workspace */
+html,body,#root{width:100%;height:100%;overflow:hidden}
+body{background:#0b0d11}
+.app{
+  height:100vh;min-height:0;display:grid;
+  grid-template-rows:58px minmax(0,1fr) 260px 44px;
+  overflow:hidden;
+  background:#0b0d11;
+}
+.topbar{height:58px;padding:0 16px;gap:18px;background:#11131a;position:relative;z-index:5}
+.brand{min-width:150px}.brandMark{width:30px;height:30px;border-radius:8px}
+.projectTitle{font-size:13px}.projectTitle small{font-size:10px}
+.topActions{gap:6px}.topActions .ghost,.topActions .share,.topActions .export{padding:7px 10px}
+.editor{
+  height:auto;min-height:0;display:grid;
+  grid-template-columns:72px minmax(0,1fr) 420px;
+  overflow:hidden;
+}
+.rail{padding:10px 7px;background:#101219;border-right:1px solid rgba(255,255,255,.08)}
+.railItem{padding:9px 3px;border-radius:9px}.railItem strong{font-size:17px}
+.center{background:#0c0f15;border-right:1px solid rgba(255,255,255,.08);min-width:0;min-height:0}
+.previewHeader{height:46px;padding:0 15px;background:#0f1219;border-bottom:1px solid rgba(255,255,255,.07)}
+.previewHeader div:first-child{min-width:0}.previewHeader b{font-size:11px}.previewHeader span{font-size:10px}
+.previewActions button{padding:6px 9px}
+.stage{padding:22px;background:
+  radial-gradient(900px 460px at 50% 40%,rgba(75,93,160,.11),transparent 68%),
+  #080a0f}
+.videoFrame{max-width:min(86%,1100px);max-height:calc(100% - 6px);border-radius:12px;box-shadow:0 24px 90px rgba(0,0,0,.55)}
+.videoFrame video,.mediaPreview{background:#030407}
+.emptyCanvas{width:min(760px,88%);border-radius:16px}
+.transport{height:40px;background:#0c0f15;border-top:1px solid rgba(255,255,255,.07);padding:0 14px}
+.inspector{min-width:0;padding:15px 16px 20px;background:#11131a;overflow:auto}
+.inspectorTop{margin-bottom:11px}.inspectorTop>b,.inspectorTop div>b{font-size:12px}
+.sectionLabel{font-size:10px!important;text-transform:uppercase;letter-spacing:.09em}
+.modeGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.mode{min-height:48px;padding:10px 8px;font-size:10px}
+.sourceCard{
+  margin-top:10px;padding:10px;border:1px solid rgba(111,134,255,.18);
+  border-radius:12px;background:linear-gradient(180deg,rgba(111,134,255,.07),rgba(255,255,255,.015))
+}
+.sourceHead,.sourcePreview{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.sourceHead b{font-size:10px}.sourceHead small,.sourcePreview small{display:block;margin-top:3px;color:rgba(244,246,251,.36);font-size:9px}
+.sourceDrop{min-height:78px;display:grid;place-items:center;gap:5px;margin-top:9px;border:1px dashed rgba(255,255,255,.14);border-radius:10px;text-align:center;padding:10px}
+.sourceDrop>span{font-size:9px;color:rgba(244,246,251,.32)}
+.uploadSourceButton{
+  display:inline-flex;align-items:center;justify-content:center;margin:0!important;padding:8px 12px;border-radius:8px;
+  background:rgba(111,134,255,.14);border:1px solid rgba(111,134,255,.25);color:#c8d0ff;cursor:pointer;font-size:10px!important
+}
+.sourcePreview{justify-content:flex-start}.sourcePreview img,.sourcePreview video{width:58px;height:58px;object-fit:cover;border-radius:8px;background:#07080c}
+.sourcePreview>div{min-width:0;overflow:hidden}.sourcePreview b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.textButton{padding:4px 7px;border:1px solid rgba(255,255,255,.1);border-radius:7px;color:rgba(244,246,251,.52);font-size:9px}
+.prompt{min-height:120px!important;border-radius:10px!important}
+.promptMeta{font-size:9px}
+.promptActions{margin-top:8px}.promptActions button{padding:7px 8px}
+.advancedSettings{margin-top:10px}
+.generationSummary{margin-top:10px}
+.generate{min-height:46px!important;margin-top:9px!important}
+.timelinePanel{
+  height:auto;min-height:0;margin:0!important;background:#0f1117;border-top:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(255,255,255,.08);overflow:hidden
+}
+.timelineTop{height:42px;padding:0 13px}
+.timelineBody{height:calc(100% - 42px);min-height:0}
+.timelineButtons button{padding:6px 8px}
+.timelineBody .tracks{overflow:auto}
+.row{min-height:42px}
+.clip{height:34px}
+.bottom{display:none}
+.feedback{height:44px;margin:0!important;padding:0 14px;background:#101219;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:6px;z-index:4}
+.feedback span{margin-right:auto;font-size:10px;color:rgba(244,246,251,.42)}
+.feedback button{padding:6px 9px;border-radius:7px;background:#171a23;border:1px solid rgba(255,255,255,.07);font-size:9px}
+.feedback button:hover{background:rgba(111,134,255,.09)}
+.mobileNav{display:none!important}
+
+@media (max-width:1120px) and (min-width:901px){
+  .editor{grid-template-columns:64px minmax(0,1fr) 360px}
+}
+@media (max-width:900px){
+  html,body,#root{overflow:auto}
+  .app{height:auto;min-height:100vh;grid-template-rows:56px auto 250px 46px}
+  .editor{height:auto;min-height:780px;grid-template-columns:64px minmax(0,1fr);grid-template-rows:minmax(480px,1fr) 380px}
+  .center{grid-column:2;grid-row:1;min-height:480px}.inspector{grid-column:2;grid-row:2}
+  .rail{grid-column:1;grid-row:1 / span 2}
+  .timelinePanel{height:250px}
+}
+@media (max-width:700px){
+  .app{grid-template-rows:56px auto 190px 58px}
+  .topbar{padding:0 9px}.projectTitle,.topActions .share,.topActions .ghost:not(:last-of-type),.topActions .avatar{display:none}
+  .brand{min-width:0}.topActions{margin-left:auto}.topActions .export{padding:7px 10px}
+  .editor{grid-template-columns:1fr;grid-template-rows:minmax(440px,auto) auto;min-height:0}
+  .rail{display:none}.center{grid-column:1;grid-row:1;min-height:440px}.inspector{grid-column:1;grid-row:2;max-height:520px;padding:12px}
+  .modeGrid{grid-template-columns:repeat(2,1fr)}
+  .stage{padding:10px}.videoFrame{max-width:96%;border-radius:10px}
+  .previewActions button:nth-child(1),.previewActions button:nth-child(4){display:none}
+  .timelinePanel{height:190px}.timelineButtons button{padding:5px 7px}
+  .timelineButtons button:nth-child(n+6){display:none}
+  .feedback{height:58px;overflow:auto;white-space:nowrap}.feedback span{min-width:120px}
+}
