@@ -1606,6 +1606,8 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             try:
                 prepared=_prepare_provider_request(provider_name, request_payload)
                 result=await provider.submit(prepared)
+                if prepared.get('_status_url_template') and not request_payload.get('_status_url'):
+                    request_payload['_status_url']=prepared['_status_url_template']
                 if not result.job_id: raise ProviderError(f'{provider_name.title()} returned no job ID.')
             except ProviderError as e:
                 last_error=str(e)
@@ -1779,7 +1781,10 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 for fallback_provider in next_candidates:
                     fallback=PROVIDERS[fallback_provider]
                     try:
-                        fallback_result=await fallback.submit(_prepare_provider_request(fallback_provider, request_data))
+                        fallback_prepared=_prepare_provider_request(fallback_provider, request_data)
+                        fallback_result=await fallback.submit(fallback_prepared)
+                        if fallback_prepared.get('_status_url_template') and not new_request.get('_status_url'):
+                            new_request['_status_url']=fallback_prepared['_status_url_template']
                         if not fallback_result.job_id:
                             raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
                     except Exception as e:
