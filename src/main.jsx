@@ -154,7 +154,7 @@ function App(){
  const [cameraMove,setCameraMove]=useState(CAMERA_MOVES[0]);
  const [prompt,setPrompt]=useState('Create a cinematic 30-second product advertisement for a premium sneaker, luxury studio, controlled camera movement and a strong final CTA.');
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
- const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||localStorage.getItem('vidigen_gateway')||DEFAULT_GATEWAY_FALLBACK);
+ const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||DEFAULT_GATEWAY_FALLBACK);
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
  const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
  const [showPasswordReset,setShowPasswordReset]=useState(false);
@@ -206,7 +206,28 @@ function App(){
  },[]);
  useEffect(()=>{if(activeClip)setEditor({...DEFAULT_CLIP,...activeClip});},[activeId]); useEffect(()=>{const onKeyDown=e=>{const tag=e.target?.tagName?.toLowerCase();const editing=tag==='input'||tag==='textarea'||tag==='select';const mod=e.ctrlKey||e.metaKey;if(mod&&e.key==='Enter'){e.preventDefault();if(!generating)generate();return}if(mod&&!editing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if(mod&&!editing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(e.key==='/'&&!editing){e.preventDefault();document.querySelector('.prompt')?.focus();}};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[generating,undoStack.length,redoStack.length]);
 
- useEffect(()=>{let alive=true;(async()=>{try{const h=await gatewayFetch(gateway,'/health',{},token);if(!alive)return;setOnline(h.ok);const p=await gatewayFetch(gateway,'/api/providers',{},token);setProviderInfo(await p.json())}catch{if(alive){setOnline(false);setProviderInfo(null)}}})();return()=>{alive=false}},[gateway,token]);
+ useEffect(()=>{let alive=true;(async()=>{try{
+   // /health is intentionally authenticated; use the public /healthz liveness probe to
+   // determine whether the production gateway is reachable before a user signs in.
+   const h=await gatewayFetch(gateway,'/healthz');
+   if(!alive)return;
+   setOnline(h.ok);
+   // Provider configuration is protected, so only request it once a real Supabase
+   // access token exists. A missing provider response must not make the whole app appear offline.
+   if(token){
+     try{
+       const p=await gatewayFetch(gateway,'/api/providers',{},token);
+       if(alive)setProviderInfo(await p.json());
+     }catch{
+       if(alive)setProviderInfo(null);
+     }
+   }else{
+     setProviderInfo(null);
+   }
+ }catch{
+   if(alive){setOnline(false);setProviderInfo(null)}
+ }
+})();return()=>{alive=false}},[gateway,token]);
  useEffect(()=>{if(nav!=='Billing'||!online)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token)); const t=await gatewayFetch(gateway,'/api/billing/test/config',{},token).then(r=>r.json()).catch(()=>null); if(alive)setPaymentTest(t)}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
  useEffect(()=>{if(!token||!online)return;let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/brain/profile',{},token);if(alive)setBrainProfile(await r.json())}catch{if(alive)setBrainProfile({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0})}})();return()=>{alive=false}},[token,online,gateway,history.length]);
  function snapshot(){setUndoStack(s=>[...s,clips].slice(-30));setRedoStack([])}
