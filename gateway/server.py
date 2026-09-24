@@ -303,7 +303,10 @@ def _jwks_client():
  # built-in cache handling refresh when a token references an unrecognized `kid`.
  import jwt
  if SUPABASE_JWT_ISSUER not in _JWKS_CLIENT_CACHE:
-  jwks_url=f'{SUPABASE_JWT_ISSUER}/auth/v1/.well-known/jwks.json'
+  issuer=SUPABASE_JWT_ISSUER.rstrip('/')
+  jwks_url=(f'{issuer}/.well-known/jwks.json'
+            if issuer.endswith('/auth/v1')
+            else f'{issuer}/auth/v1/.well-known/jwks.json')
   _JWKS_CLIENT_CACHE[SUPABASE_JWT_ISSUER]=jwt.PyJWKClient(jwks_url,cache_keys=True)
  return _JWKS_CLIENT_CACHE[SUPABASE_JWT_ISSUER]
 
