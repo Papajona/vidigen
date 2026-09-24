@@ -14,6 +14,7 @@ import json
 import os
 import re
 import time
+import uuid
 
 import httpx
 
@@ -358,10 +359,17 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         self.token_env = str(spec.get("token_env", "")).strip()
         self.auth = str(spec.get("auth", "bearer")).strip().lower()
         self.auth_header = str(spec.get("auth_header", "Authorization")).strip()
+        self.auth_query_name = str(spec.get("auth_query_name", "api_key")).strip()
+        self.submit_method = str(spec.get("submit_method", "POST")).upper()
+        self.status_method = str(spec.get("status_method", "GET")).upper()
         self.request_template = spec.get("request_template")
         self.models = spec.get("models") or {}
         self.default_model = str(spec.get("default_model", self.name)).strip()
         self.response = spec.get("response") or {}
+        self.extra_headers = {
+            str(k): str(v) for k, v in (spec.get("extra_headers") or {}).items()
+            if isinstance(k, str)
+        }
 
     def configured(self) -> bool:
         return bool(self.submit_url and (not self.token_env or os.getenv(self.token_env, "")))
@@ -429,11 +437,26 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             headers[self.auth_header or "X-API-Key"] = token
         elif self.auth == "header":
             headers[self.auth_header or "Authorization"] = token
+        elif self.auth == "query":
+            # Query-key auth is supported for vendors that do not accept API keys in
+            # headers. The actual query injection happens in _auth_url().
+            pass
         else:
             raise ProviderError(
                 f"Unsupported auth type '{self.auth}' for provider {self.name}."
             )
+        headers.update(self.extra_headers)
         return headers
+
+    def _auth_url(self, url: str) -> str:
+        token = os.getenv(self.token_env, "") if self.token_env else ""
+        if self.auth != "query" or not token:
+            return url
+        from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query[self.auth_query_name or "api_key"] = token
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
     def _response_value(self, data: dict, key: str, defaults: list[str]) -> Any:
         configured = self.response.get(key)
@@ -446,9 +469,15 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             raise ProviderError(f"{self.name} is not configured on the server.")
         context = {"model": request.get("model", self.default_model)}
         url = _render_template(self.submit_url, context)
+        url = self._auth_url(url)
         async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
             try:
-                r = await c.post(url, headers=self._headers(), json=request.get("input", request))
+                r = await c.request(
+                    self.submit_method,
+                    url,
+                    headers=self._headers(),
+                    json=request.get("input", request),
+                )
             except httpx.HTTPError as exc:
                 raise ProviderError(f"{self.name} network error: {exc}") from exc
         if r.status_code >= 400:
@@ -464,11 +493,6 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             data, "id",
             ["id", "job_id", "jobId", "task_id", "taskId", "prediction.id", "data.id"],
         )
-        if job_id in (None, ""):
-            raise ProviderError(f"{self.name} returned no job ID.")
-        status = self._response_value(
-            data, "status", ["status", "state", "data.status", "prediction.status"]
-        ) or "queued"
         output = self._response_value(
             data,
             "output",
@@ -476,6 +500,14 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         )
         if isinstance(output, list):
             output = next((x for x in output if isinstance(x, str) and x), None)
+        if job_id in (None, "") and output:
+            job_id = f"sync-{uuid.uuid4().hex}"
+            status = "completed"
+        elif job_id in (None, ""):
+            raise ProviderError(f"{self.name} returned no job ID or synchronous output.")
+        status = self._response_value(
+            data, "status", ["status", "state", "data.status", "prediction.status"]
+        ) or "queued"
         status_url = self._response_value(
             data,
             "status_url",
@@ -494,10 +526,10 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             raise ProviderError(
                 f"{self.name} has no status URL template. Set status_url_template."
             )
-        url = template.replace("{id}", str(job_id)).replace("{job_id}", str(job_id))
+        url = self._auth_url(template.replace("{id}", str(job_id)).replace("{job_id}", str(job_id)))
         async with httpx.AsyncClient(timeout=20, follow_redirects=False) as c:
             try:
-                r = await c.get(url, headers=self._headers())
+                r = await c.request(self.status_method, url, headers=self._headers())
             except httpx.HTTPError as exc:
                 raise ProviderError(f"{self.name} status network error: {exc}") from exc
         if r.status_code >= 400:
