@@ -1,3 +1,12 @@
 {
-  "providers": []
+  "providers": [
+    {
+      "name": "free-image-test",
+      "type": "image-url",
+      "enabled_env": "VIDIGEN_FREE_IMAGE_TEST_ENABLED",
+      "url_template_env": "VIDIGEN_FREE_IMAGE_TEST_URL_TEMPLATE",
+      "capabilities": ["image"],
+      "default_model": "free-test"
+    }
+  ]
 }
