@@ -98,6 +98,68 @@ jobs:
           test -n "$DEPLOYED_URL"
           echo "deployed_url=$DEPLOYED_URL" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure production gateway domain
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          GATEWAY_DOMAIN="api.vidigen.online"
+          echo "Ensuring Cloud Run custom-domain mapping for $GATEWAY_DOMAIN..."
+          if ! gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --region="${REGION}" >/tmp/domain.json 2>/dev/null; then
+            gcloud run domain-mappings create "$GATEWAY_DOMAIN" --service="${SERVICE}" --region="${REGION}"
+            gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --region="${REGION}" >/tmp/domain.json
+          fi
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/domain.json'))
+          status=data.get('status') or {}
+          records=status.get('resourceRecords') or []
+          if not records:
+              raise SystemExit("Cloud Run did not return DNS resource records yet.")
+          print("Cloud Run DNS records required:")
+          for r in records:
+              print(f"{r.get('type')} {r.get('name')} {r.get('rrdata')}")
+          PY
+          ZONE_JSON=$(curl --fail --silent --show-error "https://api.cloudflare.com/client/v4/zones?name=vidigen.online&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+          ZONE_ID=$(printf '%s' "$ZONE_JSON" | python -c 'import json,sys; d=json.load(sys.stdin); r=d.get("result") or []; print(r[0]["id"] if r else "")')
+          test -n "$ZONE_ID"
+          python - <<'PY' > /tmp/dns_records.json
+          import json
+          data=json.load(open('/tmp/domain.json'))
+          print(json.dumps(data.get('status',{}).get('resourceRecords',[])))
+          PY
+          python - <<'PY'
+          import json, os, subprocess, urllib.request
+          zone=os.environ["ZONE_ID"]
+          token=os.environ["CLOUDFLARE_API_TOKEN"]
+          required=json.load(open('/tmp/dns_records.json'))
+          def cf(method,path,payload=None):
+              req=urllib.request.Request(
+                  "https://api.cloudflare.com/client/v4/zones/"+zone+path,
+                  method=method,
+                  data=(json.dumps(payload).encode() if payload is not None else None),
+                  headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+              )
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  return json.load(r)
+          existing=cf("GET","/dns_records?per_page=100")
+          rows=existing.get("result") or []
+          for rr in required:
+              name=rr.get("name") or ""
+              typ=rr.get("type") or ""
+              content=rr.get("rrdata") or ""
+              if not name or not typ or not content:
+                  continue
+              for old in [x for x in rows if x.get("name")==name and x.get("type")!=typ]:
+                  cf("DELETE","/dns_records/"+old["id"])
+              payload={"type":typ,"name":name,"content":content,"ttl":1,"proxied":False}
+              matches=[x for x in rows if x.get("name")==name and x.get("type")==typ]
+              if matches:
+                  cf("PUT","/dns_records/"+matches[0]["id"],payload)
+              else:
+                  cf("POST","/dns_records",payload)
+          print("Cloudflare DNS records synchronized for api.vidigen.online.")
+          PY
+        
       - name: Verify deployed gateway
         env:
           DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
