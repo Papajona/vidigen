@@ -1171,6 +1171,51 @@ class RemoveBackgroundRequest(BaseModel):
     media_url: str = Field(min_length=1, max_length=2000)
     kind: str = Field(default='image', pattern='^(image|video)$')
 
+class PhotoEnhanceRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    media_url: str = Field(min_length=1, max_length=2000)
+
+@app.post('/api/photo-enhance')
+async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends(auth)):
+    uid=(user or {}).get('sub')
+    if not uid:
+        raise HTTPException(401,'Signed-in user required.')
+    from gateway.billing import enforce_free_daily_feature, refund_free_daily_feature
+    await enforce_free_daily_feature(uid,'photo_enhance')
+    import tempfile
+    from PIL import Image, ImageEnhance, ImageOps
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            source=Path(tmp)/'source'
+            output=Path(tmp)/'enhanced.jpg'
+            await _download_render_source(req.media_url,source)
+            with Image.open(source) as img:
+                img=ImageOps.exif_transpose(img).convert('RGB')
+                img=ImageOps.autocontrast(img, cutoff=1)
+                img=ImageEnhance.Sharpness(img).enhance(1.35)
+                img=ImageEnhance.Contrast(img).enhance(1.08)
+                img.save(output,'JPEG',quality=94,optimize=True)
+
+            endpoint=os.getenv('R2_ENDPOINT','')
+            access=os.getenv('R2_ACCESS_KEY_ID','')
+            secret=os.getenv('R2_SECRET_ACCESS_KEY','')
+            bucket=os.getenv('R2_BUCKET','')
+            cdn=os.getenv('R2_PUBLIC_BASE_URL','').rstrip('/')
+            if not all((endpoint,access,secret,bucket,cdn)):
+                raise HTTPException(501,'R2 storage is required for photo enhancement output.')
+            import boto3
+            from botocore.config import Config as BotoConfig
+            s3=boto3.client('s3',endpoint_url=endpoint,aws_access_key_id=access,aws_secret_access_key=secret,config=BotoConfig(signature_version='s3v4'),region_name='auto')
+            key=f'users/{uid}/enhanced/{uuid.uuid4().hex}.jpg'
+            s3.upload_file(str(output),bucket,key,ExtraArgs={'ContentType':'image/jpeg'})
+            return {'status':'complete','output_url':f'{cdn}/{key}','feature':'photo_enhance'}
+    except HTTPException:
+        await refund_free_daily_feature(uid,'photo_enhance')
+        raise
+    except Exception as e:
+        await refund_free_daily_feature(uid,'photo_enhance')
+        raise HTTPException(422,f'Photo enhancement failed: {e}')
+
 @app.post('/api/remove-background')
 async def remove_background_endpoint(req: RemoveBackgroundRequest, request: Request, user=Depends(auth)):
     """Background removal — image or video. This is CapCut's most-used tool after
@@ -1375,11 +1420,15 @@ async def providers(request:Request,_=Depends(auth)):
     return {'providers': registry.list(), 'production_policy': 'Only configured providers are eligible for execution.'}
 
 async def _bill_generation(user: dict | None, req: Generate) -> dict:
-    from gateway.billing import consume_credits
+    from gateway.billing import consume_credits, enforce_free_daily_feature
     if not user or user.get('role') == 'gateway' or not user.get('sub'):
         return {'charged': 0, 'bypassed': True}
     duration_seconds = int(str(req.duration).rstrip('s'))
     operation = 'image' if 'image' in req.mode.lower() else 'video'
+    if operation == 'video' and 'avatar' in req.mode.lower():
+        daily=await enforce_free_daily_feature(user['sub'],'avatar')
+        if daily.get('plan') == 'free':
+            return {'charged':0,'free_daily_feature':'avatar','daily_count':daily.get('count'),'daily_limit':daily.get('limit')}
     model = (req.model if req.model and req.model != 'auto' else os.getenv('REPLICATE_MODEL','default-video'))
     return await consume_credits(user['sub'], operation, model, duration_seconds, metadata={'mode':req.mode,'prompt_hash':__import__('hashlib').sha256(req.prompt.encode()).hexdigest()})
 
@@ -1427,9 +1476,11 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             return {'promptId':cache_id,'provider':provider_name,'status':result.status,'externalJobId':external_id}
         except ProviderError as e:
             try:
-                from gateway.billing import refund_credits
-                if user_id and request_payload.get('_billing',{}).get('charged'): await refund_credits(user_id,int(request_payload['_billing']['charged']),'provider_failure',{'provider':provider_name})
-            except Exception: log.exception('Credit refund failed after provider error')
+                from gateway.billing import refund_credits, refund_free_daily_feature
+                billing=request_payload.get('_billing',{})
+                if user_id and billing.get('charged'): await refund_credits(user_id,int(billing['charged']),'provider_failure',{'provider':provider_name})
+                if user_id and billing.get('free_daily_feature'): await refund_free_daily_feature(user_id,billing['free_daily_feature'])
+            except Exception: log.exception('Credit/daily-usage refund failed after provider error')
             if job_id and persistence.enabled(): await persistence.update_job(job_id,status='failed',error=str(e))
             raise HTTPException(503,str(e))
     # Local ComfyUI path.
@@ -1442,7 +1493,11 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
     workflow=deep_replace(workflow,values)
     async with httpx.AsyncClient(timeout=30,follow_redirects=False) as client:
         try:r=await client.post(f'{COMFY_URL}/prompt',json={'prompt':workflow,'client_id':'vidigen-local'})
-        except httpx.HTTPError as e: raise HTTPException(503,f'ComfyUI unavailable: {e}')
+        except httpx.HTTPError as e:
+            if user_id and request_payload.get('_billing',{}).get('free_daily_feature'):
+                from gateway.billing import refund_free_daily_feature
+                await refund_free_daily_feature(user_id,request_payload['_billing']['free_daily_feature'])
+            raise HTTPException(503,f'ComfyUI unavailable: {e}')
     if r.status_code>=400: raise HTTPException(r.status_code,'ComfyUI rejected the workflow.')
     data=r.json(); pid=data.get('prompt_id')
     if not pid or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',str(pid)): raise HTTPException(502,'Invalid prompt ID from ComfyUI')
