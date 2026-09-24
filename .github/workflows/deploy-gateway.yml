@@ -147,3 +147,70 @@ jobs:
             cat /tmp/custom-health.err || true
             echo "api.vidigen.online: not ready yet (Google domain verification/certificate may still be pending)."
           fi
+
+  # One-shot real provider smoke test. It runs only when the commit message explicitly
+  # contains [live-smoke], so ordinary production deployments never incur provider spend.
+  live_smoke:
+    if: contains(github.event.head_commit.message, '[live-smoke]')
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      REGION: ${{ secrets.GCP_REGION }}
+      SERVICE: vidigen-gateway
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Execute one real generation
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud secrets versions access latest --secret=vidigen-gateway-token)"
+          BASE_URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
+          PROVIDERS="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/providers")"
+          echo "$PROVIDERS"
+          echo "$PROVIDERS" | python -c 'import json,sys; d=json.load(sys.stdin); assert any(p.get("key")=="replicate" and p.get("configured") for p in d.get("providers",[])), "Replicate is not configured in production."'
+
+          cat >/tmp/live-generation.json <<EOF
+{"prompt":"A premium sneaker on a dark studio pedestal, cinematic blue rim light, slow camera push-in, realistic product advertising, clean composition.","mode":"Text → Video","ratio":"16:9","duration":"4s","model":"auto","idempotencyKey":"live-smoke-${GITHUB_SHA}","tags":["production-smoke"]}
+EOF
+          RESPONSE="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST "$BASE_URL/api/generate" \
+            --data-binary @/tmp/live-generation.json)"
+          echo "$RESPONSE"
+          echo "$RESPONSE" >/tmp/live-response.json
+          PROMPT_ID="$(python -c 'import json; print(json.load(open("/tmp/live-response.json")).get("promptId") or "")')"
+          test -n "$PROMPT_ID"
+
+          for i in $(seq 1 120); do
+            STATUS="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $TOKEN" \
+              "$BASE_URL/api/status/$PROMPT_ID")"
+            echo "poll=$i $STATUS"
+            RESULT="$(python - "$STATUS" <<'PY'
+import json,sys
+x=json.loads(sys.argv[1])
+if x.get('videoUrl') or x.get('outputUrl'):
+ print('OK')
+elif x.get('status')=='error':
+ print('ERROR:'+str(x.get('error') or 'generation failed'))
+else:
+ print('WAIT')
+PY
+            )"
+            case "$RESULT" in
+              OK) echo "LIVE_GENERATION_OK promptId=$PROMPT_ID"; exit 0 ;;
+              ERROR:*) echo "$RESULT"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo "Timed out waiting for live generation." >&2
+          exit 1
