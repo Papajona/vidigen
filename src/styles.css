@@ -473,3 +473,25 @@ label{color:rgba(244,246,251,.42);font-size:10px;letter-spacing:.06em;text-trans
  .generationSummary{align-items:flex-start;flex-direction:column;gap:6px}
  .settingsTabsSimple button{min-width:0}
 }
+
+/* V13.2 — feature clarity and modern editor micro-layout */
+.mediaPreview,.assetThumb{display:block;width:100%;height:100%;object-fit:contain;background:#020305}
+.card .assetThumb,.card video{height:58px;object-fit:cover}
+.aiCommandCard{padding:12px 0!important;background:transparent!important;border:0!important;border-top:1px solid rgba(255,255,255,.055)!important;border-radius:0!important}
+.aiCommandRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-top:7px}
+.aiCommandRow input{width:100%;background:#0a0c11;border:1px solid rgba(255,255,255,.075);color:rgba(244,246,251,.86);border-radius:9px;padding:9px 10px;font-size:11px}
+.aiCommandRow button{flex:0 0 auto!important;min-width:66px;background:rgba(111,134,255,.12)!important;border-color:rgba(111,134,255,.22)!important;color:#c5ceff!important;border-radius:9px!important}
+.aiCommandRow button:hover{background:rgba(111,134,255,.2)!important}
+.previewActions:empty{display:none}
+.mode{line-height:1.25}
+.mode.active{font-weight:800}
+.generationSummary{min-height:52px}
+.timelineButtons button{min-width:30px}
+.sectionCard p{margin:0}
+.advancedSettings summary span{color:rgba(244,246,251,.78)}
+.settingsSection button{margin-top:4px}
+@media (max-width:700px){
+  .aiCommandRow{grid-template-columns:1fr}
+  .aiCommandRow button{width:100%}
+  .generationSummary{padding:10px}
+}
