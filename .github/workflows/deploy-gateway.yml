@@ -77,6 +77,7 @@ jobs:
       # quietly wrong limit. Raise max-instances once that's moved to a shared store
       # (e.g. Redis/Memorystore); until then, stay at 1.
       - name: Deploy to Cloud Run
+        id: deploy
         run: |
           gcloud run deploy "${SERVICE}" \
             --image="${IMAGE}:${{ github.sha }}" \
@@ -92,21 +93,20 @@ jobs:
             --min-instances=1 \
             --max-instances=1 \
             --set-env-vars="^@^VIDIGEN_ALLOWED_ORIGINS=${{ secrets.VIDIGEN_ALLOWED_ORIGINS }},https://vidigen.online,https://www.vidigen.online@VIDIGEN_RATE_LIMIT=30@VIDIGEN_ADMIN_2FA_REQUIRED=true@VIDIGEN_PAYMENT_TEST_MODE=false@GOOGLE_PAY_TEST_MODE=false@VIDIGEN_PROVIDER_PRIORITY=${{ secrets.VIDIGEN_PROVIDER_PRIORITY || 'replicate,seedance,runway' }}@REPLICATE_MODEL=${{ secrets.REPLICATE_MODEL || 'bytedance/seedance-2.0' }}@SEEDANCE_API_URL=${{ secrets.SEEDANCE_API_URL }}@SEEDANCE_API_TOKEN=${{ secrets.SEEDANCE_API_TOKEN }}@RUNWAY_API_URL=${{ secrets.RUNWAY_API_URL }}@RUNWAY_API_TOKEN=${{ secrets.RUNWAY_API_TOKEN }}@SEEDANCE_STATUS_URL_TEMPLATE=${{ secrets.SEEDANCE_STATUS_URL_TEMPLATE }}@RUNWAY_STATUS_URL_TEMPLATE=${{ secrets.RUNWAY_STATUS_URL_TEMPLATE }}@VIDIGEN_AGENT_JOB_TIMEOUT=900@VIDIGEN_MAX_RENDER_CLIPS=50@VIDIGEN_MAX_RENDER_BYTES=500000000@VIDIGEN_RENDER_TIMEOUT=900@VIDIGEN_RENDER_ALLOWED_HOSTS=${{ secrets.VIDIGEN_RENDER_ALLOWED_HOSTS }}@SUPABASE_URL=${{ secrets.SUPABASE_URL }}@SUPABASE_JWT_ISSUER=${{ secrets.SUPABASE_URL }}@R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}@R2_BUCKET=${{ secrets.R2_BUCKET }}@R2_PUBLIC_BASE_URL=${{ secrets.R2_PUBLIC_BASE_URL }}@VIDIGEN_BILLING_CURRENCY=GHS@GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}@GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}@VIDIGEN_BILLING_ENFORCE=true" \
-            --set-secrets="VIDIGEN_GATEWAY_TOKEN=vidigen-gateway-token:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,REPLICATE_API_TOKEN=replicate-api-token:latest,PAYSTACK_SECRET_KEY=paystack-secret-key:latest,R2_ACCESS_KEY_ID=r2-access-key-id:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,GROQ_API_KEY=groq-api-key:latest"
+            --set-secrets="VIDIGEN_GATEWAY_TOKEN=vidigen-gateway-token:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,REPLICATE_API_TOKEN=replicate-api-token:latest,PAYSTACK_SECRET_KEY=paystack-secret-key:latest,R2_ACCESS_KEY_ID=r2-access-key-id:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,GROQ_API_KEY=groq-api-key:latest" 2>&1 | tee deploy.log
+          DEPLOYED_URL=$(grep "Service URL:" deploy.log | tail -1 | sed "s/.*Service URL: //")
+          test -n "$DEPLOYED_URL"
+          echo "deployed_url=$DEPLOYED_URL" >> "$GITHUB_OUTPUT"
 
       - name: Verify deployed gateway
+        env:
+          DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
-          URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.url)")
+          URL="$DEPLOYED_URL"
           REVISION=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.latestReadyRevisionName)")
-          echo "Service URL: $URL"
+          echo "Deployed URL: $URL"
           echo "Ready revision: $REVISION"
           gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(status.url,status.traffic,status.latestReadyRevisionName)"
-          echo "Canonical health:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/healthz"
-          echo
-          echo "Custom gateway domain health (non-blocking):"
-          curl --silent --show-error --retry 3 --retry-delay 2 "https://api.vidigen.online/healthz" || echo "api.vidigen.online is not serving yet."
-          echo
           echo "Container-local health:"
           docker pull "${IMAGE}:${{ github.sha }}"
           docker run -d --rm --name vidigen-gateway-smoke -e PORT=8080 -p 18080:8080 "${IMAGE}:${{ github.sha }}"
@@ -117,5 +117,18 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:18080/healthz
           docker rm -f vidigen-gateway-smoke >/dev/null 2>&1 || true
           echo
-          echo "Check readiness with:"
-          echo "curl -H \"Authorization: Bearer <VIDIGEN_GATEWAY_TOKEN>\" $URL/api/admin/release-readiness"
+          echo "Public service health:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/healthz"
+          echo
+          echo "Public FastAPI route:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/docs" >/dev/null
+          echo "FastAPI docs route: OK"
+          echo "Custom gateway domain health (non-blocking):"
+          curl --silent --show-error --retry 3 --retry-delay 2 "https://api.vidigen.online/healthz" || echo "api.vidigen.online is not serving yet."
+          echo
+          echo "Authenticated gateway health:"
+          GATEWAY_TOKEN=$(gcloud secrets versions access latest --secret=vidigen-gateway-token)
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$URL/health"
+          echo
+          echo "Provider runtime status:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$URL/api/providers"
