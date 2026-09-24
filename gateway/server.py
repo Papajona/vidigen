@@ -1548,6 +1548,8 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         external_id=result.job_id
         cache_id=job_id or external_id
         request_payload['_external_id']=external_id
+        status_url=(result.raw or {}).get('status_url') or (result.raw or {}).get('statusUrl') or ((result.raw or {}).get('urls') or {}).get('get') if isinstance(result.raw,dict) else None
+        if status_url: request_payload['_status_url']=status_url
         JOB_CACHE[cache_id]={'provider':provider_name,'external_id':external_id,'user_id':user_id,'request':request_payload}
         if job_id and persistence.enabled():
             try: await persistence.update_job(job_id,status='processing',request=request_payload)
@@ -1604,7 +1606,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
     provider=job['provider']; external=job['external_id']
     if provider in PROVIDERS:
         try:
-            result=await PROVIDERS[provider].status(external)
+            result=await PROVIDERS[provider].status(external,(job.get('request') or {}).get('_status_url'))
             if result.status.lower() in ('succeeded','completed','successful','complete') and result.output_url:
                 # Output moderation happens ONCE per job, cached on the job record — not
                 # re-run on every poll a client makes while waiting, which would otherwise
