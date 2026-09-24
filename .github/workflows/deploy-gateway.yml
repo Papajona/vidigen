@@ -92,5 +92,6 @@ jobs:
         run: |
           URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.url)")
           echo "Deployed: $URL"
+          curl --fail --silent --show-error "$URL/healthz"
           echo "Check readiness with:"
           echo "curl -H \"Authorization: Bearer <VIDIGEN_GATEWAY_TOKEN>\" $URL/api/admin/release-readiness"
