@@ -104,8 +104,8 @@ jobs:
         run: |
           GATEWAY_DOMAIN="api.vidigen.online"
           echo "Ensuring Cloud Run custom-domain mapping for $GATEWAY_DOMAIN..."
-          if ! gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --region="${REGION}" --format=json >/tmp/domain.json 2>/dev/null; then
-            gcloud run domain-mappings create --domain="$GATEWAY_DOMAIN" --service="${SERVICE}" --region="${REGION}"
+          if ! gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json 2>/dev/null; then
+            gcloud run domain-mappings create --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"
             gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --region="${REGION}" --format=json >/tmp/domain.json
           fi
           python - <<'PY'
