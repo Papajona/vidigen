@@ -56,8 +56,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4 deploy --config wrangler.jsonc
           
-      - name: Verify api.vidigen.online custom domain
+      - name: Verify production frontend domains
         run: |
-          curl --fail --silent --show-error --retry 8 --retry-delay 3 \
-            https://api.vidigen.online/docs >/dev/null
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://www.vidigen.online/ >/dev/null
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://vidigen.online/ >/dev/null
+          echo "vidigen.online and www.vidigen.online are serving the production frontend."
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://api.vidigen.online/docs >/dev/null
           echo "api.vidigen.online is reachable and forwarding to the production gateway."
