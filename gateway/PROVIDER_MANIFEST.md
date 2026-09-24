@@ -116,3 +116,8 @@ server deployment/secret manager.
 The manifest is intentionally limited to HTTP JSON execution. Providers that require a
 multi-step upload/signature protocol, websocket stream, proprietary SDK, or unusual binary
 protocol should get a dedicated adapter class inside gateway/providers.py.
+
+
+## Optional free/no-key image test slot
+
+The repository includes an opt-in `free-image-test` slot in `gateway/providers.json`. It is disabled unless both `VIDIGEN_FREE_IMAGE_TEST_ENABLED=true` and `VIDIGEN_FREE_IMAGE_TEST_URL_TEMPLATE` are set on the gateway. The URL template must be supplied only after the operator has independently verified the service's current availability, terms, rate limits and output licensing. This slot is for controlled quality testing; it is not described as a permanently free or production SLA-backed provider.
