@@ -916,6 +916,12 @@ def save_memory(x):
 
 @app.get('/health')
 def health(request:Request,_=Depends(auth)): return {'ok':True,'comfy':COMFY_URL,'workflow':WORKFLOW.exists(),'memory':len(load_memory()),'mode':'local-autonomous'}
+
+@app.get('/healthz')
+def healthz():
+    # Unauthenticated liveness probe for Cloud Run/uptime monitoring. This endpoint is
+    # deliberately limited to process health and exposes no configuration or user data.
+    return {'ok': True}
 @app.get('/api/memory')
 def memory(request:Request,_=Depends(auth)): return {'items':load_memory()}
 @app.post('/api/memory')
