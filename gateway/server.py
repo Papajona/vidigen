@@ -149,7 +149,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 class RateLimitMiddleware(BaseHTTPMiddleware):
  def __init__(self,app): super().__init__(app); self.hits={}
  async def dispatch(self,request,call_next):
-  if request.url.path.startswith('/api/'):
+  if request.url.path.startswith('/api/') and not request.url.path.startswith('/api/status/'):
    key=request.client.host if request.client else 'unknown'; now=time.time(); bucket=[t for t in self.hits.get(key,[]) if now-t<60]
    if len(bucket)>=MAX_REQUESTS_PER_MINUTE:return JSONResponse({'detail':'Rate limit exceeded'},status_code=429)
    bucket.append(now); self.hits[key]=bucket
@@ -1603,6 +1603,10 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
         row=await persistence.get_job(prompt_id,user['sub'])
         if row: job={'provider':row['provider'],'external_id':row.get('request',{}).get('_external_id'),'user_id':user['sub'],'request':row.get('request',{})}
     if not job: raise HTTPException(404,'Generation job not found')
+    caller_uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    owner_uid=job.get('user_id')
+    if caller_uid and owner_uid and caller_uid != owner_uid:
+        raise HTTPException(403,'You do not have access to this generation job.')
     provider=job['provider']; external=job['external_id']
     if provider in PROVIDERS:
         try:
