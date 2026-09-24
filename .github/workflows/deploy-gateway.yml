@@ -107,9 +107,12 @@ jobs:
           gcloud components install beta --quiet
           gcloud config set run/region "${REGION}" --quiet
           echo "Ensuring Cloud Run custom-domain mapping for $GATEWAY_DOMAIN..."
+          echo "Attempting Google domain ownership verification..."
+          gcloud domains verify "$GATEWAY_DOMAIN" 2>&1 | tee /tmp/domain-verify.log || true
           if ! gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json 2>/dev/null; then
-            if !             gcloud beta run domain-mappings create --quiet --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"; then
-              echo "Custom domain is not ready yet (likely Google domain verification). Continuing; Cloud Run run.app remains the authoritative production endpoint."
+            if ! gcloud beta run domain-mappings create --quiet --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"; then
+              echo "Custom domain mapping is still unavailable after verification attempt."
+              cat /tmp/domain-verify.log || true
               exit 0
             fi
             gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json
