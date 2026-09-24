@@ -148,7 +148,8 @@ jobs:
             echo "api.vidigen.online: not ready yet (Google domain verification/certificate may still be pending)."
           fi
 
-  # One-shot real provider smoke test. It runs only when the commit message explicitly
+  # [live-smoke] one-shot production provider check enabled for this release candidate.
+# One-shot real provider smoke test. It runs only when the commit message explicitly
   # contains [live-smoke], so ordinary production deployments never incur provider spend.
   live_smoke:
     if: contains(github.event.head_commit.message, '[live-smoke]')
