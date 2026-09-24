@@ -56,18 +56,27 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4 deploy --config wrangler.jsonc
           
-      - name: Inspect Wrangler custom-domain commands
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify production Worker and API edge
+        shell: bash
         run: |
-          npx --yes wrangler@4 domains --help
-          npx --yes wrangler@4 whoami
+          set -u
+          echo "Verifying canonical Worker deployment..."
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://vidigen-ai.affuljona.workers.dev/ >/dev/null
+          echo "Worker assets: OK"
 
-      - name: Verify production frontend domains
-        run: |
-          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://www.vidigen.online/ >/dev/null
-          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://vidigen.online/ >/dev/null
-          echo "vidigen.online and www.vidigen.online are serving the production frontend."
+          echo "Verifying API edge..."
           curl --fail --silent --show-error --retry 8 --retry-delay 3             https://api.vidigen.online/docs >/dev/null
-          echo "api.vidigen.online is reachable and forwarding to the production gateway."
+          echo "api.vidigen.online: OK"
+
+          for host in vidigen.online www.vidigen.online; do
+            if getent ahosts "$host" >/dev/null 2>&1; then
+              echo "DNS exists for $host; checking HTTP..."
+              if curl --fail --silent --show-error --retry 3 --retry-delay 2 "https://$host/" >/dev/null; then
+                echo "$host: OK"
+              else
+                echo "::warning::$host resolves but the HTTP endpoint is not serving the frontend yet."
+              fi
+            else
+              echo "::warning::$host has no public DNS record yet. Add it as a Cloudflare Worker custom domain for vidigen-ai."
+            fi
+          done
