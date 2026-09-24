@@ -193,10 +193,12 @@ class ReplicateProvider(BaseGenerationProvider):
         self.image_model = os.getenv("REPLICATE_IMAGE_MODEL", "black-forest-labs/flux-schnell")
 
     def configured(self) -> bool:
-        return bool(self.token and self.model)
+        return bool(os.getenv("REPLICATE_API_TOKEN", "") and os.getenv("REPLICATE_MODEL", ""))
 
     def model_for(self, payload: dict) -> str:
-        return self.image_model if _operation_capability(payload.get("mode")) == "image" else self.model
+        if _operation_capability(payload.get("mode")) == "image":
+            return os.getenv("REPLICATE_IMAGE_MODEL", self.image_model)
+        return os.getenv("REPLICATE_MODEL", self.model)
 
     def prepare(self, payload: dict) -> dict[str, Any]:
         mode_text = str(payload.get("mode") or "").strip().lower()
@@ -632,12 +634,35 @@ def _build_providers() -> dict[str, BaseGenerationProvider]:
 PROVIDERS = _build_providers()
 
 
+def _provider_is_configured(provider: Any) -> bool:
+    configured = getattr(provider, "configured", None)
+    if callable(configured):
+        return bool(configured())
+    # Backwards-compatible duck typing for test doubles/custom adapters that predate the
+    # formal BaseGenerationProvider interface. Real registry entries always implement it.
+    return True
+
+def _provider_supports(provider: Any, capability: str) -> bool:
+    supports = getattr(provider, "supports", None)
+    if callable(supports):
+        return bool(supports(capability))
+    capabilities = getattr(provider, "capabilities", {"video"})
+    return capability in capabilities or (
+        capability in {"image-to-video", "video-to-video"} and "video" in capabilities
+    )
+
+def _provider_model(provider: Any, payload: dict) -> str:
+    model_for = getattr(provider, "model_for", None)
+    if callable(model_for):
+        return str(model_for(payload))
+    return str(getattr(provider, "name", "provider"))
+
 def configured_providers(capability: str | None = None) -> list[str]:
     names = []
     for name, provider in PROVIDERS.items():
-        if not provider.configured():
+        if not _provider_is_configured(provider):
             continue
-        if capability and not provider.supports(capability):
+        if capability and not _provider_supports(provider, capability):
             continue
         names.append(name)
     return names
@@ -646,12 +671,13 @@ def configured_providers(capability: str | None = None) -> list[str]:
 def provider_inventory() -> list[dict[str, Any]]:
     inventory = []
     for name, provider in PROVIDERS.items():
+        capabilities = sorted(getattr(provider, "capabilities", {"video"}))
         inventory.append({
             "key": name,
-            "capability": sorted(provider.capabilities)[0] if provider.capabilities else "generation",
-            "capabilities": sorted(provider.capabilities),
-            "configured": bool(provider.configured()),
-            "model": provider.model_for({"mode": "Text → Video"}),
+            "capability": capabilities[0] if capabilities else "generation",
+            "capabilities": capabilities,
+            "configured": _provider_is_configured(provider),
+            "model": _provider_model(provider, {"mode": "Text → Video"}),
         })
     return inventory
 
