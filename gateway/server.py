@@ -1196,7 +1196,7 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
     if not uid:
         raise HTTPException(401,'Signed-in user required.')
     from gateway.billing import enforce_free_daily_feature, refund_free_daily_feature
-    await enforce_free_daily_feature(uid,'photo_enhance')
+    daily=await enforce_free_daily_feature(uid,'photo_enhance')
     import tempfile
     from PIL import Image, ImageEnhance, ImageOps
     try:
@@ -1225,10 +1225,12 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
             s3.upload_file(str(output),bucket,key,ExtraArgs={'ContentType':'image/jpeg'})
             return {'status':'complete','output_url':f'{cdn}/{key}','feature':'photo_enhance'}
     except HTTPException:
-        await refund_free_daily_feature(uid,'photo_enhance')
+        if daily.get('plan') == 'free':
+            await refund_free_daily_feature(uid,'photo_enhance')
         raise
     except Exception as e:
-        await refund_free_daily_feature(uid,'photo_enhance')
+        if daily.get('plan') == 'free':
+            await refund_free_daily_feature(uid,'photo_enhance')
         raise HTTPException(422,f'Photo enhancement failed: {e}')
 
 @app.post('/api/remove-background')
