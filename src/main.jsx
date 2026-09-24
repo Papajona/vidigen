@@ -84,6 +84,40 @@ async function startPaystackTest(base,token,amount){
  const d=await r.json(); if(!d.authorization_url) throw new Error('No Paystack TEST checkout URL returned.'); window.location.href=d.authorization_url;
 }
 
+function PasswordResetScreen({onClose,onDone}) {
+ const [password,setPassword]=useState('');
+ const [confirm,setConfirm]=useState('');
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const [info,setInfo]=useState('');
+ async function savePassword(e){
+   e.preventDefault(); setError(''); setInfo('');
+   if(password.length<8){setError('Password must be at least 8 characters.');return}
+   if(password!==confirm){setError('Passwords do not match.');return}
+   setBusy(true);
+   try{
+     const {error:err}=await supabase.auth.updateUser({password});
+     if(err) throw err;
+     setInfo('Password updated successfully. You can now sign in with your new password.');
+     setTimeout(()=>onDone(),500);
+   }catch(err){setError(err.message||'Could not update password.')}
+   finally{setBusy(false)}
+ }
+ return <div className="modalBack"><div className="modal">
+   <div className="modalHead"><b>Set a new password</b><button className="secondary" type="button" onClick={onClose}>×</button></div>
+   <p className="muted">Choose a new password for your Vidigen account.</p>
+   <form onSubmit={savePassword}>
+     <label>New password</label>
+     <input type="password" minLength={8} required value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/>
+     <label>Confirm password</label>
+     <input type="password" minLength={8} required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/>
+     {error&&<p style={{color:'var(--bad,#f87171)'}}>{error}</p>}
+     {info&&<p className="muted">{info}</p>}
+     <button className="primary" type="submit" disabled={busy} style={{marginTop:12}}>{busy?'Saving…':'Set password'}</button>
+   </form>
+ </div></div>
+}
+
 function App(){
  const [nav,setNav]=useState('Create');
  const [mode,setMode]=useState('Text → Video');
@@ -92,7 +126,7 @@ function App(){
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
  const [gateway,setGateway]=useState(()=>localStorage.getItem('vidigen_gateway')||import.meta.env.VITE_VIDIGEN_GATEWAY_URL||'');
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
- const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
+ const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));\n const [showPasswordReset,setShowPasswordReset]=useState(false);
  const [online,setOnline]=useState(false),[providerInfo,setProviderInfo]=useState(null),[status,setStatus]=useState('Ready'),[progress,setProgress]=useState(0);
  const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false);
  const [paymentTest,setPaymentTest]=useState(null),[paymentTestBusy,setPaymentTestBusy]=useState(false);
@@ -301,7 +335,7 @@ function App(){
   <div className="feedback"><span>Teach the Brain from the latest result</span><button onClick={()=>rate(5)}>★ Excellent</button><button onClick={()=>rate(3)}>Good</button><button onClick={()=>rate(1)}>Needs work</button><button onClick={()=>setShowBrain(true)}>View Brain</button></div>
   {showBrain&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Vidigen Creative Brain</b><button onClick={()=>setShowBrain(false)}>×</button></div><p>Preference memory learns from explicit feedback. It does not silently retrain third-party models.</p><div className="stats"><div><b>{history.length}</b><span>memories</span></div><div><b>{profile.successCount}</b><span>liked results</span></div><div><b>{profile.preferredTags.length}</b><span>style signals</span></div></div><div className="tags">{profile.preferredTags.length?profile.preferredTags.map(t=><span key={t}>{t}</span>):<small>No style signals yet.</small>}</div><button className="danger" onClick={()=>{setHistory([]);setStatus('Creative memory cleared.')}}>Clear memory</button></div></div>}
   {!token && supabaseConfigured && showAuth && <CustomerAuthScreen onAuthenticated={(t)=>{setToken(t);setShowAuth(false)}} onClose={()=>setShowAuth(false)}/>}
-  {showSettings&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Infrastructure</b><button onClick={()=>setShowSettings(false)}>×</button></div><label>Gateway URL</label><input value={gateway} onChange={e=>setGateway(e.target.value)}/><label>Advanced: manual auth token override</label><input type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Only for local dev / GATEWAY_TOKEN — customers should use the sign-in screen, not this field"/>{supabaseConfigured&&token&&<button className="secondary" onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true)}}>Sign out</button>}<div className="settingsNote"><b>Provider status</b><span>{providerInfo?JSON.stringify(providerInfo.providers||providerInfo):'Set the production gateway URL to inspect live provider configuration.'}</span></div><p>Production provider secrets stay on the gateway. Do not ship provider API keys inside the APK.</p><button className="primary" onClick={()=>setShowSettings(false)}>Save</button></div></div>}
+  {showPasswordReset&&<PasswordResetScreen onClose={()=>setShowPasswordReset(false)} onDone={()=>setShowPasswordReset(false)}/>}\n  {showSettings&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Infrastructure</b><button onClick={()=>setShowSettings(false)}>×</button></div><label>Gateway URL</label><input value={gateway} onChange={e=>setGateway(e.target.value)}/><label>Advanced: manual auth token override</label><input type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Only for local dev / GATEWAY_TOKEN — customers should use the sign-in screen, not this field"/>{supabaseConfigured&&token&&<button className="secondary" onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true)}}>Sign out</button>}<div className="settingsNote"><b>Provider status</b><span>{providerInfo?JSON.stringify(providerInfo.providers||providerInfo):'Set the production gateway URL to inspect live provider configuration.'}</span></div><p>Production provider secrets stay on the gateway. Do not ship provider API keys inside the APK.</p><button className="primary" onClick={()=>setShowSettings(false)}>Save</button></div></div>}
   {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
   <div className="mobileNav">{NAV.slice(0,5).map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>setNav(n)}>{n}</button>)}</div>
  </div>
