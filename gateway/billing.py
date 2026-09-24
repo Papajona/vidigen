@@ -133,7 +133,7 @@ async def enforce_free_daily_feature(user_id: str, feature: str) -> dict:
     if not result:
         raise HTTPException(503,'Daily feature usage could not be recorded.')
     count=int(result.get('new_count') or 0)
-    if count > FREE_DAILY_FEATURE_LIMIT:
+    if not result.get('allowed', True):
         raise HTTPException(429,f'Free plan limit reached: {FREE_DAILY_FEATURE_LIMIT} uses per day for {feature.replace("_"," ")}.')
     return {'allowed':True,'plan':'free','count':count,'limit':FREE_DAILY_FEATURE_LIMIT}
 
