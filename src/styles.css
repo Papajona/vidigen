@@ -396,3 +396,26 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   html{scroll-behavior:auto}
   *,*:before,*:after{transition:none!important;animation:none!important}
 }
+
+/* Settings / Brain control-center */
+.wideModal{width:min(760px,94vw)}
+.modalSub{display:block;margin-top:4px;font-size:10px;color:var(--text-dim);font-weight:500}
+.settingsTabs{display:flex;gap:6px;overflow:auto;margin:14px 0;padding-bottom:2px}
+.settingsTabs button{flex:0 0 auto;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.035);font-size:11px;font-weight:700;color:var(--text-dim)}
+.settingsTabs button:hover{border-color:rgba(79,124,255,.35);color:#fff}
+.settingsTabs button.active{background:var(--accent-soft);border-color:rgba(79,124,255,.45);color:var(--accent)}
+.settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.settingsSection{background:linear-gradient(180deg,rgba(27,29,40,.82),rgba(23,25,34,.82));border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.settingsSection>b{font-size:13px}
+.settingsSection>span,.settingsSection>small{font-size:11px;color:var(--text-dim);line-height:1.5}
+.settingsInline{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.055);font-size:11px;color:var(--text-dim)}
+.okText{color:#4ade80}.badText{color:#f87171}
+.providerRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.055)}
+.providerRow>div{min-width:0}.providerRow b{display:block;font-size:11px}.providerRow small{display:block;color:var(--text-dim);font-size:10px;margin-top:2px}
+.providerGood,.providerOff{font-size:10px;font-weight:800;border-radius:999px;padding:4px 7px;white-space:nowrap}
+.providerGood{color:#4ade80;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.22)}
+.providerOff{color:var(--text-dim);background:rgba(255,255,255,.035);border:1px solid var(--border)}
+.brainStatus{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:12px;border-radius:10px;background:rgba(79,124,255,.07);border:1px solid rgba(79,124,255,.16)}
+.brainStatus>b,.brainStatus small{display:block}.brainStatus b{font-size:11px}.brainStatus small{margin-top:3px;font-size:10px;color:var(--text-dim);line-height:1.45}
+.statusDot{width:8px;height:8px;flex:0 0 8px;margin-top:3px;border-radius:50%;background:#4ade80;box-shadow:0 0 12px rgba(74,222,128,.45)}
+@media (max-width:700px){.wideModal{width:min(96vw,760px)}.settingsGrid{grid-template-columns:1fr}.settingsTabs{margin-right:-2px}}
