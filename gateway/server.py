@@ -137,7 +137,7 @@ async def _logged_unhandled_exception_handler(request: Request, exc: Exception):
         sentry_sdk.capture_exception(exc)
     return JSONResponse({'detail': 'Internal server error.'}, status_code=500)
 
-app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=False,allow_methods=['GET','POST'],allow_headers=['Authorization','Content-Type'])
+app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=False,allow_methods=['GET','POST','PATCH','DELETE','OPTIONS'],allow_headers=['Authorization','Content-Type','X-Admin-2FA-Session'])
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
  async def dispatch(self,request,call_next):
