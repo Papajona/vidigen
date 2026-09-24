@@ -448,7 +448,7 @@ async function loadUsers() {
     </tr>`).join('');
 }
 async function deleteUser(uid) {
-  if (!confirm('Delete this user? This does NOT clean up their R2 media. This cannot be undone.')) return;
+  if (!confirm('Delete this user? The gateway will clean up their R2 media first. This cannot be undone.')) return;
   await api('/api/admin/users/' + uid, { method:'DELETE' });
   loadUsers();
 }
