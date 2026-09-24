@@ -60,13 +60,14 @@ jobs:
         shell: bash
         run: |
           set -u
-          echo "Verifying canonical Worker deployment..."
-          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://vidigen-ai.affuljona.workers.dev/ >/dev/null
-          echo "Worker assets: OK"
+          echo "Verifying production frontend..."
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://www.vidigen.online/ >/dev/null
+          echo "www.vidigen.online frontend: OK"
 
           echo "Verifying API edge..."
           curl --fail --silent --show-error --retry 8 --retry-delay 3             https://api.vidigen.online/docs >/dev/null
           echo "api.vidigen.online: OK"
+
           echo "Verifying same-origin gateway health through www..."
           curl --fail --silent --show-error --retry 8 --retry-delay 3             https://www.vidigen.online/__gateway_health >/dev/null
           echo "www.vidigen.online gateway health: OK"
