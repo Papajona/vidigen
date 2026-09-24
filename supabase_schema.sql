@@ -259,7 +259,7 @@ create index if not exists brain_pattern_user_created_idx on public.brain_patter
 -- Seed the internal credit weights. These are application credit weights, not provider prices.
 insert into public.subscription_plans (slug,name,price_ghs,monthly_credits,storage_gb,watermark,commercial_use,priority,interval)
 values
-('free','Free',0,50,0.5,true,false,false,'monthly'),
+('free','Free',0,0,0.5,true,false,false,'monthly'),
 ('creator','Creator',149,600,25,false,true,false,'monthly'),
 ('pro','Pro',399,1800,100,false,true,true,'monthly'),
 ('studio','Studio',999,5000,500,false,true,true,'monthly')
