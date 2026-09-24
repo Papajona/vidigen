@@ -59,7 +59,7 @@ async function gatewayFetch(base,path,options={},token=''){
  if(!r.ok){
    // If the configured API edge is stale/unreachable at the HTTP layer, retry the
    // canonical Cloud Run gateway before reporting the app offline.
-   if(primary!==fallback && r.status>=500){
+   if(primary!==fallback && (r.status>=500 || r.status===404)){
      try{
        const retry=await fetch(`${fallback}${path}`,{...options,headers});
        if(retry.ok){ r=retry; base=fallback; }
