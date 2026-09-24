@@ -129,12 +129,14 @@ Settings → Secrets and variables → Actions, add:
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` (public client URL) |
 | `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key for the browser client |
 | `VITE_SENTRY_DSN` | optional |
+| `VIDIGEN_PROVIDER_PRIORITY` | optional provider order, e.g. `replicate,seedance,runway` |
+| `SEEDANCE_STATUS_URL_TEMPLATE` | optional status endpoint template using `{id}` |
+| `RUNWAY_STATUS_URL_TEMPLATE` | optional status endpoint template using `{id}` |
 | `GEMINI_API_KEY` | optional server-side Gemini API key; never put it in a `VITE_*` secret |
 | `GEMINI_MODEL` | optional, defaults to `gemini-2.5-flash` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | only if using `deploy-frontend.yml` instead of the Pages dashboard |
 
-Push to `main` and `deploy-gateway.yml` runs: installs deps, runs `tests/`, builds the
-Docker image, pushes it to Artifact Registry, deploys to Cloud Run. It prints the
+Push to `main` and the matching GitHub Actions workflow runs automatically: gateway changes are tested, containerized, pushed to Artifact Registry, and deployed to Cloud Run; frontend changes are tested, built and deployed to the Cloudflare Worker. It prints the
 `*.run.app` URL and a ready-made `curl` command against `/api/admin/release-readiness` —
 run that after every deploy; it's the gateway checking its own ffmpeg/whisper/Supabase/R2/
 provider config live, more trustworthy than reading docs.
