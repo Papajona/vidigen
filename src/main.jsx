@@ -507,7 +507,7 @@ function App(){
   <div className="inspectorTop"><div><b>Create</b><small className="modalSub">Describe what you want. Vidigen handles the production steps.</small></div><span className="tinyBadge">1 • CREATE</span></div>
   <div className="createSteps"><span className="active"><b>1</b> Idea</span><span><b>2</b> Style</span><span><b>3</b> Generate</span></div>
   <label className="sectionLabel">What are you making?</label>
-  <div className="modeGrid">{MODES.map(m=><button key={m} className={\`mode \${mode===m?'active':''}\`} onClick={()=>setMode(m)}>{m}</button>)}</div>
+  <div className="modeGrid">{MODES.map(m=><button key={m} className={`mode \${mode===m?'active':''}`} onClick={()=>setMode(m)}>{m}</button>)}</div>
   {generationSourceTypeForMode()&&<div className="sourceCard">
     <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Use an uploaded file or a matching timeline asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
     {generationSource
@@ -534,7 +534,7 @@ function App(){
 </>}
     {nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
- const c={id:\`media-\${Date.now()}\`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
+ const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
     {nav==='Text'&&<>
       <div className="sectionCard">
         <b>Text &amp; motion</b>
