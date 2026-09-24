@@ -586,12 +586,19 @@ class PublicImageURLProvider(BaseGenerationProvider):
     def __init__(self, spec: dict[str, Any]):
         self.name = str(spec.get("name", "free-image-test")).strip().lower()
         self.capabilities = {"image"}
-        self.url_template = str(spec.get("url_template") or spec.get("free_image_url_template") or "").strip()
+        url_template = str(spec.get("url_template") or spec.get("free_image_url_template") or "").strip()
+        url_env = str(spec.get("url_template_env") or "").strip()
+        self.url_template = os.getenv(url_env, "") if url_env else url_template
+        self.enabled_env = str(spec.get("enabled_env") or "").strip()
         self.models = spec.get("models") or {}
         self.default_model = str(spec.get("default_model", "free-image-test")).strip()
 
     def configured(self) -> bool:
-        return bool(self.url_template)
+        if not self.url_template:
+            return False
+        if self.enabled_env:
+            return os.getenv(self.enabled_env, "false").lower() in {"1", "true", "yes", "on"}
+        return True
 
     def model_for(self, payload: dict) -> str:
         return str(self.models.get("image") or self.default_model)
