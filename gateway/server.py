@@ -921,6 +921,58 @@ def memory(request:Request,_=Depends(auth)): return {'items':load_memory()}
 def add_memory(req:Memory,request:Request,_=Depends(auth)):
  data=load_memory(); data.append(req.model_dump()); save_memory(data); return {'ok':True,'count':len(data)}
 
+async def _call_gemini(prompt: str, *, system: str, model: str|None=None, json_mode: bool=False) -> str:
+    key=os.getenv('GEMINI_API_KEY','')
+    if not key:
+        raise HTTPException(503,'Gemini is not configured on the gateway.')
+    chosen=(model or os.getenv('GEMINI_MODEL','gemini-2.5-flash')).strip()
+    if not re.fullmatch(r'[A-Za-z0-9._:-]{1,128}', chosen):
+        raise HTTPException(400,'Invalid Gemini model name.')
+    body={
+        'systemInstruction': {'parts':[{'text':system}]},
+        'contents':[{'role':'user','parts':[{'text':prompt[:MAX_PROMPT]}]}],
+        'generationConfig': ({'responseMimeType':'application/json'} if json_mode else {}),
+    }
+    url=f'https://generativelanguage.googleapis.com/v1beta/models/{chosen}:generateContent'
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
+        try:
+            r=await client.post(url, params={'key':key}, json=body)
+        except httpx.HTTPError as e:
+            raise HTTPException(502,f'Gemini request failed: {e}')
+    if r.status_code>=400:
+        raise HTTPException(502,f'Gemini request failed ({r.status_code}).')
+    try:
+        data=r.json()
+        text=''.join(p.get('text','') for p in data['candidates'][0]['content']['parts'])
+    except Exception:
+        raise HTTPException(502,'Gemini returned an invalid response.')
+    if not text.strip():
+        raise HTTPException(502,'Gemini returned an empty response.')
+    return text.strip()
+
+@app.post('/api/gemini/analyze')
+async def gemini_analyze(req:GeminiRequest,request:Request,_=Depends(auth)):
+    system=('You are Vidigen AI Director. Analyze a media-generation request and return ONLY JSON '
+            'with keys type,tags,riskFlags,summary,suggestedRatio,suggestedDuration,shotCount,camera,lighting,style. '
+            'Do not invent policy violations. Keep tags short and useful.')
+    raw=await _call_gemini(req.prompt,system=system,model=req.model,json_mode=True)
+    try:
+        data=json.loads(raw)
+    except Exception:
+        raise HTTPException(502,'Gemini returned non-JSON analysis.')
+    if not isinstance(data,dict):
+        raise HTTPException(502,'Gemini returned an invalid analysis object.')
+    return {'analysis':data,'model':req.model or os.getenv('GEMINI_MODEL','gemini-2.5-flash')}
+
+@app.post('/api/gemini/improve')
+async def gemini_improve(req:GeminiRequest,request:Request,_=Depends(auth)):
+    mode=req.mode or 'Text → Video'
+    system=('You are an expert cinematic AI director. Rewrite the user request into one production-ready '
+            f'prompt for {mode}. Preserve the user intent. Add subject consistency, composition, camera movement, '
+            'lighting, environment, pacing and useful negative constraints. Return ONLY the rewritten prompt text.')
+    text=await _call_gemini(req.prompt,system=system,model=req.model,json_mode=False)
+    return {'prompt':text,'model':req.model or os.getenv('GEMINI_MODEL','gemini-2.5-flash')}
+
 @app.post('/api/analyze')
 async def analyze(req:Analyze,request:Request,_=Depends(auth)):
  system='Classify a creative media request. Return JSON only with keys type,tags,riskFlags,summary. type must be one of video,text-to-image,image-to-video,video-to-video,avatar,commercial,caption. Keep tags to at most 8 short strings. Do not provide credentials or instructions for abuse.'
