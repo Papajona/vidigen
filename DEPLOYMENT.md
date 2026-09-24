@@ -129,9 +129,12 @@ Settings → Secrets and variables → Actions, add:
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` (public client URL) |
 | `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key for the browser client |
 | `VITE_SENTRY_DSN` | optional |
-| `VIDIGEN_PROVIDER_PRIORITY` | optional provider order, e.g. `replicate,seedance,runway` |
-| `SEEDANCE_STATUS_URL_TEMPLATE` | optional status endpoint template using `{id}` |
-| `RUNWAY_STATUS_URL_TEMPLATE` | optional status endpoint template using `{id}` |
+| `VIDIGEN_PROVIDER_PRIORITY` | provider failover order, e.g. `replicate,seedance,runway` |
+| `REPLICATE_MODEL` | Replicate model identifier used by the main generation route |
+| `SEEDANCE_API_URL` / `SEEDANCE_API_TOKEN` | Seedance submission endpoint + credential |
+| `SEEDANCE_STATUS_URL_TEMPLATE` | optional Seedance status endpoint template using `{id}` |
+| `RUNWAY_API_URL` / `RUNWAY_API_TOKEN` | Runway submission endpoint + credential |
+| `RUNWAY_STATUS_URL_TEMPLATE` | optional Runway status endpoint template using `{id}` |
 | `GEMINI_API_KEY` | optional server-side Gemini API key; never put it in a `VITE_*` secret |
 | `GEMINI_MODEL` | optional, defaults to `gemini-2.5-flash` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | only if using `deploy-frontend.yml` instead of the Pages dashboard |
@@ -222,4 +225,8 @@ The workflow deploys with `--memory=4Gi --cpu=2 --no-cpu-throttling --concurrenc
 - [ ] Hit `https://api.vidigen.online/api/health` with your gateway token and confirm the
       cert and DNS mapping are actually serving through the custom domain, not just the
       raw `*.run.app` URL.
-\n\n### Production security note\nDo not set `VITE_GEMINI_API_KEY` in a public production build. Any `VITE_*` value is embedded into the browser bundle. Gemini should be called server-side through the gateway if it is enabled for production.\n
+\n\n### Provider failover behaviour
+
+The gateway treats provider selection as a routing preference, not a single-provider dependency. With `VIDIGEN_PROVIDER_PRIORITY=replicate,seedance,runway`, an `auto` generation tries each configured provider in that order when submission fails. A provider-specific request tries the requested provider first and then the other configured providers. If a provider accepts the job but later reports a terminal failure, the same logical generation job is automatically submitted to the next configured provider without charging the user again. If every configured provider fails, the gateway refunds the single charge and returns a controlled error.
+
+### Production security note\nDo not set `VITE_GEMINI_API_KEY` in a public production build. Any `VITE_*` value is embedded into the browser bundle. Gemini should be called server-side through the gateway if it is enabled for production.\n
