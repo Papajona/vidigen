@@ -47,35 +47,42 @@ jobs:
           GATEWAY_TOKEN="$(gcloud secrets versions access latest --secret=vidigen-gateway-token)"
           BASE_URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
           KEY="ci-live-smoke-${GITHUB_SHA}"
+          cat >/tmp/generation_payload.json <<EOF
+{"prompt":"A simple cinematic blue studio product shot with a slow camera push-in and clean lighting.","mode":"Text → Video","ratio":"16:9","duration":"4s","model":"auto","idempotencyKey":"$KEY","tags":["ci-smoke"]}
+EOF
 
-          RESPONSE="$(curl --fail --silent --show-error             -H "Authorization: Bearer $GATEWAY_TOKEN"             -H "Content-Type: application/json"             -X POST "$BASE_URL/api/generate"             -d "{"prompt":"A simple cinematic blue studio product shot with a slow camera push-in and clean lighting.","mode":"Text → Video","ratio":"16:9","duration":"4s","model":"auto","idempotencyKey":"$KEY","tags":["ci-smoke"]}")"
+          RESPONSE="$(curl --fail --silent --show-error             -H "Authorization: Bearer $GATEWAY_TOKEN"             -H "Content-Type: application/json"             -X POST "$BASE_URL/api/generate"             --data-binary @/tmp/generation_payload.json)"
 
           echo "$RESPONSE" > /tmp/generation.json
           cat /tmp/generation.json
           PROMPT_ID="$(python - <<'PY'
-          import json
-          print(json.load(open("/tmp/generation.json")).get("promptId") or "")
-          PY
-          )"
+import json
+print(json.load(open("/tmp/generation.json")).get("promptId") or "")
+PY
+)"
           test -n "$PROMPT_ID"
 
           for i in $(seq 1 120); do
             STATUS="$(curl --fail --silent --show-error               -H "Authorization: Bearer $GATEWAY_TOKEN"               "$BASE_URL/api/status/$PROMPT_ID")"
             echo "$STATUS"
-            python - "$STATUS" <<'PY'
-          import json, sys
-          d=json.loads(sys.argv[1])
-          if d.get("videoUrl") or d.get("outputUrl"):
-              print("LIVE_GENERATION_OK")
-              raise SystemExit(0)
-          if d.get("status")=="error":
-              print(d.get("error") or "Generation failed.", file=sys.stderr)
-              raise SystemExit(2)
-          raise SystemExit(1)
-          PY
-            code=$?
-            [ "$code" -eq 0 ] && exit 0
-            [ "$code" -eq 2 ] && exit 1
+            if python - "$STATUS" <<'PY'
+import json, sys
+d=json.loads(sys.argv[1])
+if d.get("videoUrl") or d.get("outputUrl"):
+    print("LIVE_GENERATION_OK")
+    raise SystemExit(0)
+if d.get("status")=="error":
+    print(d.get("error") or "Generation failed.", file=sys.stderr)
+    raise SystemExit(2)
+raise SystemExit(1)
+PY
+            then
+              exit 0
+            else
+              code=$?
+              [ "$code" -eq 2 ] && exit 1
+            fi
             sleep 5
           done
+          echo "Live generation did not complete within 10 minutes."
           exit 1
