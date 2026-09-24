@@ -1,3 +1,4 @@
+# schema-recheck
 name: One-time Replicate schema inspection
 
 on:
