@@ -1653,6 +1653,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                 'promptId':cache_id,
                 'provider':provider_name,
                 'status':result.status,
+                'outputUrl':result.output_url,
                 'externalJobId':external_id,
                 'fallbackUsed': attempt > 0,
                 'providerAttempts': provider_candidates[:attempt+1],
