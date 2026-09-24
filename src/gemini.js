@@ -12,8 +12,10 @@ async function gatewayGemini(base, token, path, body) {
   return data;
 }
 
-export function geminiConfigured() {
-  return Boolean(import.meta.env.VITE_VIDIGEN_GATEWAY_URL);
+export function geminiConfigured(gateway='') {
+  // The gateway URL is runtime state in Vidigen production. Do not require a VITE_* build-time
+  // variable when the application already has its canonical gateway configured.
+  return Boolean(gateway || import.meta.env.VITE_VIDIGEN_GATEWAY_URL);
 }
 
 export async function analyzeWithGemini(prompt, gateway, token) {
