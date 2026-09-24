@@ -78,6 +78,7 @@ jobs:
             --region="${REGION}" \
             --platform=managed \
             --allow-unauthenticated \
+            --ingress=all \
             --memory=4Gi \
             --cpu=2 \
             --no-cpu-throttling \
