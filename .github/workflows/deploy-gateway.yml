@@ -104,6 +104,8 @@ jobs:
           echo "Cloud Run remains the origin service; Google Cloud domain verification is intentionally not required."
 
       - name: One-time real provider generation verification
+        env:
+          DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
           set -euo pipefail
           TOKEN="$(gcloud secrets versions access latest --secret=vidigen-gateway-token)"
