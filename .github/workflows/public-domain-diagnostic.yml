@@ -1,0 +1,32 @@
+name: Public Vidigen domain diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-domain-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve and inspect production domains
+        shell: bash
+        run: |
+          set -u
+          for host in vidigen.online www.vidigen.online api.vidigen.online vidigen-ai.affuljona.workers.dev; do
+            echo "=== DNS $host ==="
+            getent ahosts "$host" || true
+            echo
+          done
+
+          for url in             https://vidigen.online/             https://www.vidigen.online/             https://vidigen-ai.affuljona.workers.dev/             https://api.vidigen.online/docs; do
+            echo "=== HTTP $url ==="
+            code="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30               -o /tmp/body.txt -D /tmp/headers.txt -w "%{http_code}" "$url" || true)"
+            echo "HTTP_STATUS=$code"
+            head -30 /tmp/headers.txt || true
+            echo "--- BODY HEAD ---"
+            head -c 1500 /tmp/body.txt || true
+            echo
+            echo
+          done
