@@ -1,0 +1,64 @@
+name: One-time provider execution smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-execution-smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      REGION: ${{ secrets.GCP_REGION }}
+      SERVICE: vidigen-gateway
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Execute one real provider generation
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud secrets versions access latest --secret=vidigen-gateway-token)"
+          BASE_URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
+          cat >/tmp/request.json <<EOF
+{"prompt":"A premium studio product shot of a sleek portable power station on a clean table, soft cinematic lighting, slow camera push-in, realistic commercial finish, no text or logos.","mode":"Text → Video","ratio":"16:9","duration":"4s","model":"replicate","idempotencyKey":"provider-smoke-${GITHUB_SHA}","tags":["provider-smoke"]}
+EOF
+          RESPONSE="$(curl --fail-with-body --silent --show-error             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             -X POST "$BASE_URL/api/generate"             --data-binary @/tmp/request.json)"
+          echo "$RESPONSE"
+          echo "$RESPONSE" >/tmp/response.json
+          PROMPT_ID="$(python -c 'import json; print(json.load(open("/tmp/response.json")).get("promptId") or "")')"
+          PROVIDER="$(python -c 'import json; print(json.load(open("/tmp/response.json")).get("provider") or "")')"
+          test -n "$PROMPT_ID"
+          echo "accepted provider=$PROVIDER promptId=$PROMPT_ID"
+          for i in $(seq 1 90); do
+            sleep 8
+            STATUS="$(curl --fail-with-body --silent --show-error               -H "Authorization: Bearer $TOKEN"               "$BASE_URL/api/status/$PROMPT_ID")"
+            echo "poll=$i $STATUS"
+            OUTPUT="$(python - "$STATUS" <<'PY'
+import json,sys
+d=json.loads(sys.argv[1])
+print(d.get("videoUrl") or d.get("outputUrl") or "")
+PY
+)"
+            STATE="$(python - "$STATUS" <<'PY'
+import json,sys
+print(json.loads(sys.argv[1]).get("status") or "")
+PY
+)"
+            if [ -n "$OUTPUT" ]; then
+              curl --fail --silent --show-error --location --range 0-1023 -o /tmp/output.bin "$OUTPUT"
+              test -s /tmp/output.bin
+              echo "LIVE_PROVIDER_GENERATION_VERIFIED provider=$PROVIDER promptId=$PROMPT_ID bytes=$(wc -c </tmp/output.bin)"
+              exit 0
+            fi
+            [ "$STATE" = "error" ] && exit 1
+          done
+          echo "Provider generation timed out." >&2
+          exit 1
