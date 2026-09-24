@@ -126,7 +126,8 @@ function App(){
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
  const [gateway,setGateway]=useState(()=>localStorage.getItem('vidigen_gateway')||import.meta.env.VITE_VIDIGEN_GATEWAY_URL||'');
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
- const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));\n const [showPasswordReset,setShowPasswordReset]=useState(false);
+ const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
+ const [showPasswordReset,setShowPasswordReset]=useState(false);
  const [online,setOnline]=useState(false),[providerInfo,setProviderInfo]=useState(null),[status,setStatus]=useState('Ready'),[progress,setProgress]=useState(0);
  const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false);
  const [paymentTest,setPaymentTest]=useState(null),[paymentTestBusy,setPaymentTestBusy]=useState(false);
@@ -165,8 +166,9 @@ function App(){
    if(!supabaseConfigured) return;
    _onUnauthorizedHandler=()=>{setToken('');setShowAuth(true);setStatus('Your session expired — please sign in again.')};
    const {data:sub}=supabase.auth.onAuthStateChange((_event,session)=>{
+     if(_event==='PASSWORD_RECOVERY'){ setShowPasswordReset(true); setShowAuth(false); }
      if(session?.access_token) setToken(session.access_token);
-     else setToken('');
+     else if(_event!=='PASSWORD_RECOVERY') setToken('');
    });
    supabase.auth.getSession().then(({data})=>{if(data?.session?.access_token) setToken(data.session.access_token)});
    return ()=>{sub.subscription.unsubscribe();_onUnauthorizedHandler=null};
