@@ -116,3 +116,20 @@ def test_status_fails_over_when_accepted_provider_later_fails():
             server.JOB_CACHE.pop(job_id, None)
         else:
             server.JOB_CACHE[job_id] = original
+
+
+def test_configured_provider_list_includes_all_configured_fallbacks():
+    with patch.dict(
+        os.environ,
+        {
+            'REPLICATE_API_TOKEN': 'set',
+            'REPLICATE_MODEL': 'test-model',
+            'SEEDANCE_API_URL': 'https://seedance.example/jobs',
+            'SEEDANCE_API_TOKEN': 'set',
+            'RUNWAY_API_URL': 'https://runway.example/jobs',
+            'RUNWAY_API_TOKEN': 'set',
+            'VIDIGEN_PROVIDER_PRIORITY': 'replicate',
+        },
+        clear=False,
+    ):
+        assert server._configured_provider_names() == ['replicate', 'seedance', 'runway']
