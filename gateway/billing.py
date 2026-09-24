@@ -220,7 +220,7 @@ def build_router(auth_dependency, admin_dependency):
         if not PAYSTACK_SECRET: raise HTTPException(503,'Paystack is not configured yet.')
         if not plan.get('paystack_plan_code'):
             await _sync_paystack_plan(plan); plan=await _get_plan(req.plan_slug) or plan
-        callback=req.callback_url or os.getenv('VIDIGEN_BILLING_CALLBACK_URL') or str(request.base_url).rstrip('/')+'/billing/callback'
+        callback=req.callback_url or os.getenv('VIDIGEN_BILLING_CALLBACK_URL') or str(request.base_url).rstrip('/')+'/api/billing/callback'
         metadata={'type':'vidigen_subscription','user_id':uid,'plan_slug':plan['slug'],'plan_id':plan.get('id'),'monthly_credits':int(plan['monthly_credits']),'payment_method':'paystack'}
         payload={'email':email,'amount':_amount_subunit(plan['price_ghs']),'currency':CURRENCY,'callback_url':callback,'metadata':metadata}
         if plan.get('paystack_plan_code'): payload['plan']=plan['paystack_plan_code']
@@ -243,6 +243,15 @@ def build_router(auth_dependency, admin_dependency):
         if persistence.enabled():
             await persistence.sb_request('POST','payments',{'user_id':uid,'provider':'paystack','reference':reference,'amount_ghs':price,'amount':price,'currency':CURRENCY,'status':'pending','payment_method':'paystack','metadata':metadata})
         return {'authorization_url':data.get('authorization_url'),'access_code':data.get('access_code'),'reference':reference,'credits':150,'price_ghs':price}
+
+    @router.get('/callback')
+    async def billing_callback(request: Request):
+        reference=request.query_params.get('trxref') or request.query_params.get('reference') or ''
+        return {
+            'ok': True,
+            'message': 'Payment return received. Vidigen applies subscriptions and credit packs from the verified Paystack webhook.',
+            'reference': reference or None,
+        }
 
     @router.get('/paystack/verify/{reference}')
     async def verify(reference: str, user=Depends(auth_dependency)):
