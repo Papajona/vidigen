@@ -173,10 +173,10 @@ create index if not exists agent_runs_user_created_idx on public.agent_runs(user
 
 -- Billing / subscriptions / credits -------------------------------------------------------
 create table if not exists public.subscription_plans (
-  id uuid primary key default gen_random_uuid(), slug text unique not null,
+  slug text primary key, id uuid unique not null default gen_random_uuid(),
   name text not null, price_ghs numeric(12,2) not null default 0 check (price_ghs >= 0),
   monthly_credits integer not null default 0 check (monthly_credits >= 0),
-  storage_gb integer not null default 0 check (storage_gb >= 0), watermark boolean not null default true,
+  storage_gb numeric not null default 0 check (storage_gb >= 0), watermark boolean not null default true,
   commercial_use boolean not null default false, priority boolean not null default false,
   interval text not null default 'monthly' check (interval in ('monthly','annually')),
   paystack_plan_code text, active boolean not null default true,
@@ -184,17 +184,21 @@ create table if not exists public.subscription_plans (
 );
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
-  plan_id uuid references public.subscription_plans(id), plan_slug text not null, status text not null default 'active'
+  plan_id uuid references public.subscription_plans(id), plan_slug text not null references public.subscription_plans(slug), status text not null default 'active'
     check(status in ('trialing','active','past_due','cancelled','expired','suspended')),
-  started_at timestamptz not null default now(), current_period_end timestamptz,
-  paystack_customer_code text, paystack_subscription_code text, updated_at timestamptz not null default now()
+  started_at timestamptz not null default now(), current_period_start timestamptz,
+  current_period_end timestamptz, cancel_at_period_end boolean not null default false,
+  paystack_customer_code text, paystack_subscription_code text, paystack_transaction_reference text,
+  updated_at timestamptz not null default now()
 );
 create unique index if not exists active_subscription_per_user on public.subscriptions(user_id) where status='active';
 create table if not exists public.payments (
-  id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
-  plan_id uuid references public.subscription_plans(id), provider text not null, reference text unique not null,
-  amount numeric(12,2) not null, currency text not null default 'GHS', status text not null default 'pending',
-  metadata jsonb not null default '{}'::jsonb, verified_at timestamptz, created_at timestamptz not null default now()
+  id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
+  reference text unique, provider text, payment_method text, plan_slug text,
+  amount_ghs numeric(12,2), amount numeric(12,2), currency text not null default 'GHS',
+  status text not null default 'pending', metadata jsonb not null default '{}'::jsonb,
+  verified_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+  plan_id uuid references public.subscription_plans(id)
 );
 create table if not exists public.payment_events (
   id uuid primary key default gen_random_uuid(), provider text not null, provider_event_id text not null unique,
@@ -255,7 +259,7 @@ create index if not exists brain_pattern_user_created_idx on public.brain_patter
 -- Seed the internal credit weights. These are application credit weights, not provider prices.
 insert into public.subscription_plans (slug,name,price_ghs,monthly_credits,storage_gb,watermark,commercial_use,priority,interval)
 values
-('free','Free',0,50,2,true,false,false,'monthly'),
+('free','Free',0,50,0.5,true,false,false,'monthly'),
 ('creator','Creator',149,600,25,false,true,false,'monthly'),
 ('pro','Pro',399,1800,100,false,true,true,'monthly'),
 ('studio','Studio',999,5000,500,false,true,true,'monthly')
@@ -318,6 +322,17 @@ begin
   return query select balance as new_balance from public.credit_wallets where user_id = p_user_id;
 end;
 $$;
+
+
+revoke all on function public.consume_credits_atomic(uuid,integer) from public;
+revoke all on function public.consume_credits_atomic(uuid,integer) from anon, authenticated;
+revoke all on function public.refund_credits_atomic(uuid,integer) from public;
+revoke all on function public.refund_credits_atomic(uuid,integer) from anon, authenticated;
+revoke all on function public.grant_subscription_credits_atomic(uuid,integer,integer) from public;
+revoke all on function public.grant_subscription_credits_atomic(uuid,integer,integer) from anon, authenticated;
+grant execute on function public.consume_credits_atomic(uuid,integer) to service_role;
+grant execute on function public.refund_credits_atomic(uuid,integer) to service_role;
+grant execute on function public.grant_subscription_credits_atomic(uuid,integer,integer) to service_role;
 
 -- Backup & Rollback metadata. The actual snapshot data lives in R2 (as one JSON file per
 -- backup) — this table just tracks what exists and its provenance.
