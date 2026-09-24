@@ -229,3 +229,170 @@ label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 
   .videoFrame { max-width: 96%; }
 }
 .emptyState,.mediaImported{border:1px dashed var(--border,#2b2f36);border-radius:12px;padding:16px;display:grid;gap:6px;margin-top:12px}.emptyState span,.mediaImported small{color:var(--muted,#8b919a)}.assetPlaceholder{height:80px;display:grid;place-items:center;border-radius:10px;background:#111;color:#9aa1aa;font-weight:800}
+
+/* V12.1 studio polish
+   Direction: creator-first hierarchy, quieter chrome, stronger focus states and dense but
+   readable controls. This stays dependency-free so the editor can keep its fast Vite/Capacitor
+   footprint while adopting the visual language common to modern creative tools. */
+:root{
+  --panel-glass:rgba(21,22,30,.82);
+  --panel-raised:rgba(27,29,40,.92);
+  --border-strong:rgba(255,255,255,.14);
+  --accent-glow:rgba(79,124,255,.22);
+}
+html{background:#0d0e13;scroll-behavior:smooth}
+body{overflow-x:hidden}
+*{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.16) transparent}
+button,input,textarea,select{transition:border-color .16s ease,background-color .16s ease,transform .16s ease,box-shadow .16s ease,opacity .16s ease}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 4px var(--accent-glow)
+}
+.topbar{
+  background:linear-gradient(180deg,rgba(21,22,30,.97),rgba(21,22,30,.86));
+  backdrop-filter:blur(18px);box-shadow:0 8px 30px rgba(0,0,0,.2);position:relative;z-index:12
+}
+.topbar:after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(79,124,255,.45),transparent);opacity:.55
+}
+.brandMark{
+  background:linear-gradient(135deg,#5c84ff,#315fe5);box-shadow:0 10px 24px rgba(49,95,229,.28)
+}
+.brand span{letter-spacing:-.02em}
+.enginePill{background:rgba(255,255,255,.025);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.enginePill.online{box-shadow:0 0 0 3px rgba(74,222,128,.05),inset 0 1px 0 rgba(255,255,255,.04)}
+.ghost,.share,.export{min-height:34px}
+.ghost:hover,.share:hover{transform:translateY(-1px);border-color:var(--border-strong)}
+.export{box-shadow:0 10px 25px rgba(79,124,255,.18)}
+.export:hover,.generate:hover,.primary:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(79,124,255,.2)}
+.rail{
+  background:linear-gradient(180deg,#15161e,#12131a);box-shadow:inset -1px 0 rgba(255,255,255,.02)
+}
+.railItem{position:relative}
+.railItem.active:before{
+  content:"";position:absolute;left:-8px;top:9px;bottom:9px;width:3px;border-radius:0 4px 4px 0;background:var(--accent);
+  box-shadow:0 0 14px rgba(79,124,255,.55)
+}
+.center{background:radial-gradient(circle at 50% 5%,rgba(79,124,255,.055),transparent 32%),#101117}
+.previewHeader,.timelineTop,.bottomHead{background:rgba(21,22,30,.72);backdrop-filter:blur(12px)}
+.stage{
+  background:
+    radial-gradient(circle at 50% 50%,rgba(255,255,255,.035),transparent 34%),
+    linear-gradient(180deg,#08090c,#020204)
+}
+.videoFrame{
+  border:1px solid rgba(255,255,255,.08);box-shadow:0 22px 80px rgba(0,0,0,.68),0 0 0 1px rgba(255,255,255,.02)
+}
+.bigPlay{box-shadow:0 10px 34px rgba(79,124,255,.32);transition:transform .16s ease,box-shadow .16s ease}
+.bigPlay:hover{transform:translate(-50%,-50%) scale(1.05);box-shadow:0 14px 40px rgba(79,124,255,.4)}
+.inspector{
+  background:linear-gradient(180deg,rgba(21,22,30,.96),rgba(18,19,26,.98));
+}
+.inspectorTop{position:sticky;top:-16px;z-index:2;padding:4px 0 12px;background:linear-gradient(180deg,rgba(21,22,30,.99),rgba(21,22,30,.92) 72%,transparent)}
+.mode{
+  min-height:48px;background:linear-gradient(180deg,rgba(27,29,40,.95),rgba(24,26,35,.95));border-color:rgba(255,255,255,.075)
+}
+.mode:hover{transform:translateY(-1px);border-color:rgba(79,124,255,.35)}
+.mode.active{box-shadow:0 10px 24px rgba(79,124,255,.18)}
+.prompt{
+  min-height:132px;background:rgba(27,29,40,.75);border-color:rgba(255,255,255,.11);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);font-size:13.5px
+}
+.prompt::placeholder{color:rgba(238,240,246,.33)}
+.promptMeta{
+  display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px;color:var(--text-dim)
+}
+.promptMeta kbd{
+  padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:rgba(255,255,255,.035);font-family:inherit;color:rgba(238,240,246,.5)
+}
+.promptChips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.promptChips button{
+  flex:1 1 30%;min-width:86px;padding:7px 9px;border:1px solid var(--border);border-radius:999px;
+  background:rgba(255,255,255,.035);color:rgba(238,240,246,.72);font-size:10px;font-weight:700
+}
+.promptChips button:hover{border-color:rgba(79,124,255,.4);background:var(--accent-soft);color:#fff}
+.promptActions button:hover,.sectionCard button:hover,.previewActions button:hover,.timelineButtons button:hover{transform:translateY(-1px)}
+.directorCard{
+  background:linear-gradient(145deg,rgba(79,124,255,.08),rgba(27,29,40,.9) 45%,rgba(27,29,40,.82));
+  border-color:rgba(79,124,255,.18)
+}
+.generate{
+  background:linear-gradient(135deg,#5a83ff,#3767ed 60%,#2d5bd7);
+  box-shadow:0 10px 28px rgba(56,103,237,.2)
+}
+.sectionCard{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025)
+}
+.sectionCard > b{letter-spacing:-.01em}
+.timelinePanel{
+  background:linear-gradient(180deg,#15161e,#12131a);
+  box-shadow:0 -12px 30px rgba(0,0,0,.16);position:relative;z-index:3
+}
+.timelineTop{height:52px}
+.clip,.textClip,.audioClip{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 4px 12px rgba(0,0,0,.12)
+}
+.clip:hover{transform:translateY(-1px);filter:brightness(1.05)}
+.clip.selected{outline:2px solid #fff;box-shadow:0 0 0 3px var(--accent-glow),inset 0 1px 0 rgba(255,255,255,.12)}
+.playhead{box-shadow:0 0 10px rgba(255,255,255,.38)}
+.bottom{
+  background:linear-gradient(180deg,#15161e,#12131a)
+}
+.card{
+  border-color:rgba(255,255,255,.075);background:linear-gradient(180deg,rgba(27,29,40,.95),rgba(23,25,34,.96));
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.2)}
+.feedback{background:rgba(21,22,30,.95);backdrop-filter:blur(14px)}
+.feedback button:hover{transform:translateY(-1px);border-color:rgba(79,124,255,.32)}
+.modalBack{background:rgba(2,3,7,.76);backdrop-filter:blur(5px)}
+.modal{
+  background:linear-gradient(180deg,rgba(24,25,34,.98),rgba(18,19,26,.98));
+  border-color:rgba(255,255,255,.12);box-shadow:0 35px 120px rgba(0,0,0,.62)
+}
+.emptyState,.mediaImported{
+  background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.012));border-color:rgba(255,255,255,.12)
+}
+@media (max-width:1100px) and (min-width:901px){
+  .editor{grid-template-columns:72px minmax(0,1fr) 330px}
+  .topbar{gap:14px}
+  .brand{min-width:145px}
+}
+@media (max-width:700px){
+  :root{font-size:14px}
+  .topbar{height:58px;padding:0 9px;gap:8px}
+  .brand{min-width:auto}
+  .brand span{font-size:13px}
+  .brandMark{width:29px;height:29px;border-radius:8px}
+  .brand b{display:none}
+  .topActions{gap:5px}
+  .topActions .enginePill{font-size:9px;padding:5px 7px}
+  .topActions .ghost:first-of-type,.topActions .ghost:nth-of-type(2),.topActions .ghost:nth-of-type(3){display:none}
+  .export{padding:7px 9px;font-size:11px}
+  .avatar{width:29px;height:29px}
+  .editor{grid-template-columns:56px 1fr;height:calc(100vh - 98px - 176px);min-height:430px}
+  .rail{padding:8px 5px;gap:3px}
+  .railItem{padding:9px 2px;font-size:9px}
+  .railItem strong{font-size:17px}
+  .railItem.active:before{left:-5px}
+  .previewHeader{height:46px;padding:0 10px}
+  .previewActions button:nth-child(1),.previewActions button:nth-child(4){display:none}
+  .stage{padding:6px}
+  .videoFrame{max-width:98%;border-radius:7px}
+  .inspector{top:58px;width:min(390px,calc(100vw - 56px))}
+  .timelinePanel{height:142px;margin-bottom:48px}
+  .timelineTop{height:46px;padding:0 9px}
+  .timelineButtons{max-width:62%;justify-content:flex-end}
+  .timelineButtons button:nth-child(n+5){display:none}
+  .timelineBody{grid-template-columns:56px 1fr;height:96px}
+  .labels{padding-top:20px}
+  .labels span{height:24px;padding:4px 6px;font-size:9px}
+  .row{height:24px}
+  .clip,.textClip,.audioClip,.emptyClip{height:19px;font-size:9px}
+  .feedback{height:40px;padding:0 8px}
+  .feedback span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+  .feedback button{padding:5px 7px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*:before,*:after{transition:none!important;animation:none!important}
+}
