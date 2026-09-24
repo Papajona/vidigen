@@ -44,9 +44,8 @@ async function gatewayFetch(base,path,options={},token=''){
  const headers={...((hasBody && !(options.body instanceof FormData))?{'Content-Type':'application/json'}:{}),...(options.headers||{})};
  if(token) headers.Authorization=`Bearer ${token}`;
  const primary=base.replace(/\/$/,'');
- const configuredFallback=(import.meta.env.VITE_VIDIGEN_GATEWAY_FALLBACK_URL||CANONICAL_GATEWAY_FALLBACK).replace(/\/$/,'');
- const fallback=(configuredFallback===primary ? DEFAULT_GATEWAY_FALLBACK : configuredFallback).replace(/\/$/,'');
- const cloudRunFallback=CANONICAL_GATEWAY_FALLBACK.replace(/\/$/,'');
+ const fallback=CANONICAL_GATEWAY_FALLBACK.replace(/\/$/,'');
+ const cloudRunFallback=fallback;
  let r;
  try{
    r=await fetch(`${primary}${path}`,{...options,headers});
@@ -166,7 +165,7 @@ function App(){
  const [cameraMove,setCameraMove]=useState(CAMERA_MOVES[0]);
  const [prompt,setPrompt]=useState('Create a cinematic 30-second product advertisement for a premium sneaker, luxury studio, controlled camera movement and a strong final CTA.');
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
- const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||DEFAULT_GATEWAY_FALLBACK);
+ const [gateway,setGateway]=useState(()=>CANONICAL_GATEWAY_FALLBACK);
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
  const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
  const [showPasswordReset,setShowPasswordReset]=useState(false);
