@@ -358,7 +358,7 @@ function App(){
    const each=imageMode?5:Math.max(2,Math.round((total/count)*10)/10);
    let learned=memoryOn?buildLocalPrompt(prompt,profile,mode):prompt;
    if(memoryOn&&(activeProfile?.preferred_tags||[]).length){
-     learned+=' Apply the user\\'s learned creative preferences: '+activeProfile.preferred_tags.join(', ')+'.';
+     learned+=" Apply the user's learned creative preferences: "+activeProfile.preferred_tags.join(', ')+'.';
    }
    const useAutoCamera=cameraMove===CAMERA_MOVES[0];
    return Array.from({length:count},(_,i)=>{
