@@ -36,7 +36,7 @@ const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}cat
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
 let _onUnauthorizedHandler = null;
-const DEFAULT_GATEWAY_FALLBACK='https://vidigen-gateway-8907342947.us-central1.run.app';
+const DEFAULT_GATEWAY_FALLBACK='https://vidigen-gateway-xvpegaghzq-uc.a.run.app';
 async function gatewayFetch(base,path,options={},token=''){
  const headers={...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers||{})};
  if(token) headers.Authorization=`Bearer ${token}`;
