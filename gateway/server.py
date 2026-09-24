@@ -117,6 +117,43 @@ def _provider_candidates(requested: str) -> list[str]:
     return []
 
 
+def _is_image_mode(mode: str) -> bool:
+    return str(mode or '').strip().lower() in ('text → image','text -> image','text to image')
+
+def _replicate_model_for_payload(payload: dict) -> str:
+    if _is_image_mode(payload.get('mode')):
+        return os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell')
+    return os.getenv('REPLICATE_MODEL','')
+
+def _replicate_input_for_payload(payload: dict) -> dict:
+    mode_text=str(payload.get('mode') or '').strip().lower()
+    if _is_image_mode(mode_text):
+        if payload.get('sourceUrl'):
+            raise HTTPException(400,'Text → Image does not accept source media.')
+        return {
+            'prompt':payload.get('prompt',''),
+            'aspect_ratio':payload.get('ratio') or '1:1',
+            'output_format':'png',
+        }
+    source=dict(payload)
+    duration_value=source.get('duration',5)
+    duration_value=int(str(duration_value).rstrip('s')) if isinstance(duration_value,str) else int(duration_value)
+    provider_input={
+        'prompt':source.get('prompt',''),
+        'duration':duration_value,
+        'aspect_ratio':source.get('ratio') or source.get('aspect_ratio') or '16:9',
+        'resolution':source.get('resolution','720p'),
+        'generate_audio':bool(source.get('generate_audio',True)),
+    }
+    original_source=source.get('sourceUrl')
+    if original_source:
+        if 'image' in mode_text:
+            provider_input['image']=original_source
+        elif 'video' in mode_text:
+            provider_input['reference_videos']=[original_source]
+    return provider_input
+
+
 SENTRY_DSN = os.getenv('SENTRY_DSN', '')
 if SENTRY_DSN:
     import sentry_sdk
@@ -1489,7 +1526,14 @@ async def _bill_generation(user: dict | None, req: Generate) -> dict:
         if daily.get('plan') == 'free':
             return {'charged':0,'free_daily_feature':'avatar','daily_count':daily.get('count'),'daily_limit':daily.get('limit')}
     default_model = os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell') if operation == 'image' else os.getenv('REPLICATE_MODEL','default-video')
-    model = (req.model if req.model and req.model != 'auto' else default_model)
+    if req.model and req.model not in ('auto','replicate','seedance','runway','local'):
+        model=req.model
+    elif req.model == 'replicate':
+        model=default_model
+    elif req.model in ('seedance','runway','local'):
+        model=req.model
+    else:
+        model=default_model
     return await consume_credits(user['sub'], operation, model, duration_seconds, metadata={'mode':req.mode,'prompt_hash':__import__('hashlib').sha256(req.prompt.encode()).hexdigest()})
 
 
@@ -1586,7 +1630,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=(os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell') if str(request_payload.get('mode') or '').strip().lower() in ('text → image','text -> image','text to image') else os.getenv('REPLICATE_MODEL','')) if provider_name=='replicate' else provider_name,
+                        model=_replicate_model_for_payload(request_payload) if provider_name=='replicate' else provider_name,
                         status='queued',
                         error=None,
                     )
@@ -1594,43 +1638,12 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     log.exception('Failed to update generation job during provider failover')
 
             provider=PROVIDERS[provider_name]
-            provider_input=request_payload.get('input',request_payload)
             if provider_name == 'replicate':
-                mode_text=str(request_payload.get('mode') or '').strip().lower()
-                is_image_output=mode_text in ('text → image','text -> image','text to image')
-                if is_image_output:
-                    # Image generation intentionally uses a separate image-capable Replicate
-                    # model and does not send video-only fields such as duration/audio.
-                    provider_input={
-                        'prompt':request_payload.get('prompt',''),
-                        'aspect_ratio':request_payload.get('ratio') or '1:1',
-                        'output_format':'png',
-                    }
-                elif isinstance(provider_input,dict):
-                    duration_value=provider_input.get('duration',5)
-                    duration_value=int(str(duration_value).rstrip('s')) if isinstance(duration_value,str) else int(duration_value)
-                    ratio_value=provider_input.get('ratio') or provider_input.get('aspect_ratio') or '16:9'
-                    provider_input={
-                        'prompt':provider_input.get('prompt',''),
-                        'duration':duration_value,
-                        'aspect_ratio':ratio_value,
-                        'resolution':provider_input.get('resolution','720p'),
-                        'generate_audio':bool(provider_input.get('generate_audio',True)),
-                    }
-                original_source=request_payload.get('sourceUrl')
-                if original_source:
-                    if is_image_output:
-                        raise HTTPException(400,'Text → Image does not accept a source image/video. Choose Image → Video or Video → Video instead.')
-                    elif 'image' in mode_text:
-                        provider_input['image']=original_source
-                    elif 'video' in mode_text:
-                        provider_input['reference_videos']=[original_source]
-                if is_image_output and provider_name == 'replicate':
-                    request_model = os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell')
-                else:
-                    request_model = os.getenv('REPLICATE_MODEL','')
+                provider_input=_replicate_input_for_payload(request_payload)
+                request_model=_replicate_model_for_payload(request_payload)
             else:
-                request_model = provider_name
+                provider_input=request_payload.get('input',request_payload)
+                request_model=provider_name
             try:
                 result=await provider.submit({'input':provider_input,'model':request_model})
                 if not result.job_id:
@@ -1814,7 +1827,8 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 for fallback_provider in next_candidates:
                     fallback=PROVIDERS[fallback_provider]
                     try:
-                        fallback_result=await fallback.submit({'input':request_data.get('input',request_data)})
+                        fallback_input=_replicate_input_for_payload(request_data) if fallback_provider=='replicate' else request_data.get('input',request_data)
+                        fallback_result=await fallback.submit({'input':fallback_input,'model':_replicate_model_for_payload(request_data) if fallback_provider=='replicate' else fallback_provider})
                         if not fallback_result.job_id:
                             raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
                     except Exception as e:
@@ -1850,7 +1864,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                             await persistence.update_job(
                                 prompt_id,
                                 provider=fallback_provider,
-                                model=os.getenv('REPLICATE_MODEL','') if fallback_provider=='replicate' else fallback_provider,
+                                model=_replicate_model_for_payload(new_request) if fallback_provider=='replicate' else fallback_provider,
                                 status='processing',
                                 request=new_request,
                                 error=None,
