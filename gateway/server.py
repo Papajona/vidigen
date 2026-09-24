@@ -212,6 +212,12 @@ class Analyze(BaseModel):
  model_config=ConfigDict(extra='forbid')
  prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
 
+class GeminiRequest(BaseModel):
+ model_config=ConfigDict(extra='forbid')
+ prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
+ mode:str|None=Field(default=None,max_length=64)
+ model:str|None=Field(default=None,max_length=128)
+
 class EditPlan(BaseModel):
  model_config=ConfigDict(extra='forbid')
  command:str=Field(min_length=1,max_length=1000)
