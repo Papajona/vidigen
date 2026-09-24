@@ -2,7 +2,7 @@
 
 Two independent deployables, two independent pipelines:
 
-- **Frontend** (Vite/React static build) → Cloudflare Pages, connected to GitHub.
+- **Frontend** (Vite/React static build) → Cloudflare Worker, deployed from GitHub Actions.
 - **Gateway** (FastAPI + ffmpeg + faster-whisper, `gateway/server.py`) → Google Cloud Run,
   deployed by `.github/workflows/deploy-gateway.yml` on every push to `main`.
 
@@ -137,24 +137,13 @@ provider config live, more trustworthy than reading docs.
 
 ---
 
-## 3. Cloudflare — DNS and Pages
+## 3. Cloudflare — DNS and Worker frontend
 
-### Frontend: Cloudflare Pages
+### Frontend: Cloudflare Worker
 
-Dashboard → Workers & Pages → Create → Pages → Connect to Git → pick this repo.
+GitHub Actions runs `.github/workflows/deploy-frontend.yml`: `npm ci` → `npm test` → `npm run build` → `wrangler@4 deploy` using `wrangler.jsonc` and the `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets.
 
-- Build command: `npm run build`
-- Output directory: `dist`
-- Environment variable: `VITE_VIDIGEN_GATEWAY_URL` = `https://api.vidigen.online`
-
-That's the whole "launch through GitHub" loop for the frontend — every push to `main`
-rebuilds and redeploys automatically, no YAML needed. (If you'd rather run `npm test`
-before every deploy and keep all secrets in GitHub instead of split across two
-dashboards, use `.github/workflows/deploy-frontend.yml` instead — just turn off Pages'
-own build step first so they don't race each other.)
-
-Pages → Custom domains → add your root domain (and `www` if you use it). Cloudflare
-wires the DNS automatically since the zone is already on your account.
+The Worker serves the built `dist/` assets and uses the SPA fallback configured in `wrangler.jsonc`. Add the Worker/domain route you want in the Cloudflare dashboard and point your public site hostname to this Worker.
 
 ### Gateway: point a subdomain at Cloud Run
 
