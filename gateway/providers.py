@@ -502,12 +502,15 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             output = next((x for x in output if isinstance(x, str) and x), None)
         if job_id in (None, "") and output:
             job_id = f"sync-{uuid.uuid4().hex}"
-            status = "completed"
+            status = self._response_value(
+                data, "status", ["status", "state", "data.status", "prediction.status"]
+            ) or "completed"
         elif job_id in (None, ""):
             raise ProviderError(f"{self.name} returned no job ID or synchronous output.")
-        status = self._response_value(
-            data, "status", ["status", "state", "data.status", "prediction.status"]
-        ) or "queued"
+        else:
+            status = self._response_value(
+                data, "status", ["status", "state", "data.status", "prediction.status"]
+            ) or "queued"
         status_url = self._response_value(
             data,
             "status_url",
