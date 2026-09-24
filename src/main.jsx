@@ -24,6 +24,7 @@ if (SENTRY_DSN) {
   });
 }
 
+const BUILD_HEALTH_CHECK='cloud-run-direct';
 const NAV=[['Create','✦'],['Media','▧'],['Text','T'],['Audio','♫'],['Effects','◌'],['Captions','CC'],['Projects','□'],['Billing','¤']];
 const MODES=['Text → Video','Image → Video','Video → Video','Text → Image','Commercial Ad','AI Avatar'];
 const CAMERA_MOVES=['Auto (let the model choose)','Static shot','Slow push in','Pull out','Pan left','Pan right','Tilt up','Tilt down','Orbit around subject','Handheld','Aerial / drone','Dolly tracking shot'];
