@@ -69,9 +69,9 @@ jobs:
           curl --fail --silent --show-error --retry 8 --retry-delay 3             https://api.vidigen.online/docs >/dev/null
           echo "api.vidigen.online: OK"
 
-          echo "Verifying production gateway liveness..."
-          curl --fail --silent --show-error --retry 8 --retry-delay 3             "https://vidigen-gateway-xvpegaghzq-uc.a.run.app/healthz?probe=github" >/dev/null
-          echo "Cloud Run gateway health: OK"
+          echo "Verifying production gateway..."
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             "https://vidigen-gateway-xvpegaghzq-uc.a.run.app/docs?probe=github" >/dev/null
+          echo "Cloud Run gateway: OK"
 
           for host in vidigen.online www.vidigen.online; do
             if getent ahosts "$host" >/dev/null 2>&1; then
