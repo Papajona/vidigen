@@ -103,11 +103,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           GATEWAY_DOMAIN="api.vidigen.online"
+          gcloud components install beta --quiet
           gcloud config set run/region "${REGION}" --quiet
           echo "Ensuring Cloud Run custom-domain mapping for $GATEWAY_DOMAIN..."
           if ! gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json 2>/dev/null; then
             gcloud beta run domain-mappings create --quiet --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"
-            gcloud run domain-mappings describe "$GATEWAY_DOMAIN" --region="${REGION}" --format=json >/tmp/domain.json
+            gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json
           fi
           python - <<'PY'
           import json
