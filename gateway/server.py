@@ -1507,7 +1507,7 @@ async def providers(request:Request,_=Depends(auth)):
         {'key':'replicate','capability':'video + image','configured':bool(os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL')), 'image_configured':bool(os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_IMAGE_MODEL','black-forest-labs/flux-schnell'))},
         {'key':'seedance','capability':'video','configured':bool(os.getenv('SEEDANCE_API_URL') and os.getenv('SEEDANCE_API_TOKEN'))},
         {'key':'runway','capability':'video','configured':bool(os.getenv('RUNWAY_API_URL') and os.getenv('RUNWAY_API_TOKEN'))},
-        {'key':'avatar-gateway','capability':'avatar','configured':bool(os.getenv('AVATAR_API_TOKEN'))},
+        {'key':'avatar-gateway','capability':'avatar','configured':False,'available':False,'reason':'No production avatar provider adapter is enabled.'},
     ]
     return {'providers':providers, 'production_policy':'Only configured providers are eligible for execution.', 'failover':'Configured video providers are tried in VIDIGEN_PROVIDER_PRIORITY order; accepted jobs can fail over during status polling without a second charge.'}
 
@@ -1793,7 +1793,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 if mod_result is None:
                     from gateway.moderation import moderate_output_video, moderate_output_image
                     op=(job.get('request') or {}).get('mode','')
-                    mod_result=await (moderate_output_image(result.output_url) if 'image' in str(op).lower() else moderate_output_video(result.output_url))
+                    mod_result=await (moderate_output_image(result.output_url) if _is_image_mode(op) else moderate_output_video(result.output_url))
                     job['_moderation']=mod_result
                     JOB_CACHE[prompt_id]=job
                 if not mod_result.get('safe'):
