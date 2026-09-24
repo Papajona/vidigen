@@ -103,6 +103,51 @@ jobs:
           echo "api.vidigen.online is served by the Cloudflare Worker custom-domain proxy."
           echo "Cloud Run remains the origin service; Google Cloud domain verification is intentionally not required."
 
+      - name: One-time real provider generation verification
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud secrets versions access latest --secret=vidigen-gateway-token)"
+          BASE_URL="$DEPLOYED_URL"
+          KEY="provider-live-smoke-$(date +%s)"
+          cat >/tmp/provider-smoke.json <<EOF
+{"prompt":"A premium studio product shot of a sleek portable power station, cinematic lighting, slow camera push-in, realistic materials, no text.","mode":"Text → Video","ratio":"16:9","duration":"4s","model":"replicate","idempotencyKey":"$KEY","tags":["provider-smoke"]}
+EOF
+          RESPONSE="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST "$BASE_URL/api/generate" \
+            --data-binary @/tmp/provider-smoke.json)"
+          echo "$RESPONSE"
+          echo "$RESPONSE" >/tmp/provider-response.json
+          PROMPT_ID="$(python -c 'import json; print(json.load(open("/tmp/provider-response.json")).get("promptId") or "")')"
+          PROVIDER="$(python -c 'import json; print(json.load(open("/tmp/provider-response.json")).get("provider") or "")')"
+          test -n "$PROMPT_ID"
+          echo "provider=$PROVIDER promptId=$PROMPT_ID"
+          for i in $(seq 1 90); do
+            sleep 8
+            STATUS="$(curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $TOKEN" \
+              "$BASE_URL/api/status/$PROMPT_ID")"
+            echo "poll=$i $STATUS"
+            export STATUS
+            RESULT="$(python - <<'PY'
+import json, os
+d=json.loads(os.environ["STATUS"])
+if d.get("videoUrl") or d.get("outputUrl"):
+ print("OK")
+elif d.get("status")=="error":
+ print("ERROR:"+str(d.get("error") or "generation failed"))
+else:
+ print("WAIT")
+PY
+            )"
+            case "$RESULT" in
+              OK) echo "LIVE_PROVIDER_GENERATION_VERIFIED provider=$PROVIDER promptId=$PROMPT_ID"; exit 0 ;;
+              ERROR:*) echo "$RESULT" >&2; exit 1 ;;
+            esac
+          done
+          echo "Timed out waiting for live provider generation." >&2
+          exit 1
       - name: Verify deployed gateway
         env:
           DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
