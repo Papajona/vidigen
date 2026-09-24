@@ -1783,8 +1783,6 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                     try:
                         fallback_prepared=_prepare_provider_request(fallback_provider, request_data)
                         fallback_result=await fallback.submit(fallback_prepared)
-                        if fallback_prepared.get('_status_url_template') and not new_request.get('_status_url'):
-                            new_request['_status_url']=fallback_prepared['_status_url_template']
                         if not fallback_result.job_id:
                             raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
                     except Exception as e:
@@ -1798,6 +1796,8 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                     new_external=fallback_result.job_id
                     new_request=dict(request_data)
                     new_request['_external_id']=new_external
+                    if fallback_prepared.get('_status_url_template') and not new_request.get('_status_url'):
+                        new_request['_status_url']=fallback_prepared['_status_url_template']
                     new_request['_provider_attempts']=attempted + [fallback_provider]
                     fallback_status_url=(
                         (fallback_result.raw or {}).get('status_url') or
