@@ -1787,7 +1787,8 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                     return {'status':'error','error':'This generation was blocked by content moderation. Any credits charged have been refunded.'}
                 if persistence.enabled() and user and user.get('sub'): await persistence.update_job(prompt_id,status='completed',completed_at=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
                 if user and user.get('sub'): asyncio.create_task(_auto_learn_output(user,prompt_id,result.output_url,provider))
-                return {'status':'complete','videoUrl':result.output_url,'provider':provider}
+                output_key='outputUrl' if _operation_capability((job.get('request') or {}).get('mode'))=='image' else 'videoUrl'
+                return {'status':'complete',output_key:result.output_url,'outputUrl':result.output_url,'provider':provider}
             if result.status.lower() in ('failed','canceled','cancelled','error'):
                 request_data=job.get('request') or {}
                 candidates=[str(x).lower() for x in (request_data.get('_provider_candidates') or []) if str(x).lower() in PROVIDERS]
