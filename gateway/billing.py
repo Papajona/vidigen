@@ -15,7 +15,7 @@ TEST_PAYMENT_PRICES_GHS = (10.0, 20.0, 50.0)
 BILLING_ENFORCE = os.getenv('VIDIGEN_BILLING_ENFORCE', 'true').lower() in {'1','true','yes','on'}
 CURRENCY = os.getenv('VIDIGEN_BILLING_CURRENCY', 'GHS')
 DEFAULT_PLANS = [
-    {'slug':'free','name':'Free','price_ghs':0.0,'monthly_credits':150,'storage_gb':0.5,'watermark':True,'commercial_use':False,'priority':False,'interval':'monthly'},
+    {'slug':'free','name':'Free','price_ghs':0.0,'monthly_credits':50,'storage_gb':0.5,'watermark':True,'commercial_use':False,'priority':False,'interval':'monthly'},
     {'slug':'creator','name':'Creator','price_ghs':149.0,'monthly_credits':600,'storage_gb':25,'watermark':False,'commercial_use':True,'priority':False,'interval':'monthly'},
     {'slug':'pro','name':'Pro','price_ghs':399.0,'monthly_credits':1800,'storage_gb':100,'watermark':False,'commercial_use':True,'priority':True,'interval':'monthly'},
     {'slug':'studio','name':'Studio','price_ghs':999.0,'monthly_credits':5000,'storage_gb':500,'watermark':False,'commercial_use':True,'priority':True,'interval':'monthly'},

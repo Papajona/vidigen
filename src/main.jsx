@@ -6,6 +6,8 @@ import {buildPreferenceProfile, buildLocalPrompt, normalizeRequest, validateMemo
 import {analyzeWithGemini, improvePromptWithGemini, geminiConfigured} from './gemini.js';
 import {nativeExportAvailable, exportProjectNative, copyFileToNativeStorage} from './nativeRenderEngine.js';
 import {runGooglePayTest} from './googlePayTest.js';
+import CustomerAuthScreen from './CustomerAuthScreen.jsx';
+import {supabase, supabaseConfigured} from './supabaseClient.js';
 
 // Frontend error monitoring — the other half of Sentry-based Error Monitoring (the backend
 // half lives in gateway/server.py's global exception handlers). Guarded by an env var so
@@ -33,10 +35,16 @@ const DEFAULT_CLIP={trimStart:0,trimEnd:5,speed:1,volume:1,brightness:100,contra
 const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch{return f}};
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
+let _onUnauthorizedHandler = null;
 async function gatewayFetch(base,path,options={},token=''){
  const headers={...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers||{})};
  if(token) headers.Authorization=`Bearer ${token}`;
  const r=await fetch(`${base.replace(/\/$/,'')}${path}`,{...options,headers});
+ // Only treat this as "your session expired" when a token was actually sent and rejected —
+ // not for calls made with no token at all (some dev/local-gateway paths are intentionally
+ // unauthenticated), and guarded against firing repeatedly for every in-flight request when
+ // a session has already expired, not just the first one to notice.
+ if(r.status===401 && token && _onUnauthorizedHandler) _onUnauthorizedHandler();
  if(!r.ok){let m=`Gateway HTTP ${r.status}`;try{const j=await r.json();m=j.detail||j.error||m}catch{}throw new Error(m)}
  return r;
 }
@@ -51,7 +59,12 @@ async function waitJob(base,token,id,onProgress){
  throw new Error('Generation timed out.');
 }
 async function generateScene(base,token,payload,onProgress){
- const data=await (await gatewayFetch(base,'/api/generate',{method:'POST',body:JSON.stringify(payload)},token)).json();
+ // idempotencyKey lets a retried request (network blip, client retry) land on the
+ // gateway's existing-job lookup instead of billing and submitting a second time — see
+ // gateway/server.py's /api/generate handler. Generated once per logical generation call
+ // (not per HTTP attempt), so an actual retry of the same call reuses the same key.
+ const withKey={...payload,idempotencyKey:(payload.idempotencyKey||(crypto?.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`))};
+ const data=await (await gatewayFetch(base,'/api/generate',{method:'POST',body:JSON.stringify(withKey)},token)).json();
  if(data.videoUrl||data.outputUrl)return {url:data.videoUrl||data.outputUrl,jobId:data.promptId};
  if(!data.promptId)throw new Error('No generation job ID returned.');
  return waitJob(base,token,data.promptId,onProgress);
@@ -107,6 +120,22 @@ function App(){
  useEffect(()=>save('vidigen_active_clip',activeId),[activeId]);
  useEffect(()=>save('vidigen_captions',captions),[captions]);
   useEffect(()=>{localStorage.setItem('vidigen_gateway',gateway);sessionStorage.setItem('vidigen_gateway_token',token);localStorage.setItem('vidigen_learning',memoryOn?'on':'off')},[gateway,token,memoryOn]);
+ useEffect(()=>{
+   // Registered once, for the app's entire lifetime — NOT inside CustomerAuthScreen, which
+   // unmounts the moment a user signs in (it's only rendered while `!token`). The bug that
+   // wiring had: the auth-state listener died at exactly the moment session refresh starts
+   // mattering. This one keeps running regardless of what's currently rendered, so
+   // TOKEN_REFRESHED events keep `token` current automatically, and a real SIGNED_OUT (or
+   // an expired refresh token that can't renew) correctly drops back to the sign-in screen.
+   if(!supabaseConfigured) return;
+   _onUnauthorizedHandler=()=>{setToken('');setStatus('Your session expired — please sign in again.')};
+   const {data:sub}=supabase.auth.onAuthStateChange((_event,session)=>{
+     if(session?.access_token) setToken(session.access_token);
+     else setToken('');
+   });
+   supabase.auth.getSession().then(({data})=>{if(data?.session?.access_token) setToken(data.session.access_token)});
+   return ()=>{sub.subscription.unsubscribe();_onUnauthorizedHandler=null};
+ },[]);
  useEffect(()=>{if(activeClip)setEditor({...DEFAULT_CLIP,...activeClip});},[activeId]);
  useEffect(()=>{let alive=true;(async()=>{try{const h=await gatewayFetch(gateway,'/health',{},token);if(!alive)return;setOnline(h.ok);const p=await gatewayFetch(gateway,'/api/providers',{},token);setProviderInfo(await p.json())}catch{if(alive){setOnline(false);setProviderInfo(null)}}})();return()=>{alive=false}},[gateway,token]);
  useEffect(()=>{if(nav!=='Billing'||!online)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token)); const t=await gatewayFetch(gateway,'/api/billing/test/config',{},token).then(r=>r.json()).catch(()=>null); if(alive)setPaymentTest(t)}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
@@ -250,7 +279,8 @@ function App(){
   <section className="bottom"><div className="bottomHead"><b>Production assets</b><span>{clips.length} asset(s) in this project</span></div>{clips.length?<div className="cards">{clips.slice(0,12).map((c,i)=><button className="card" key={c.id} onClick={()=>{setActiveId(c.id);setNav('Effects')}}>{c.src?.startsWith('blob:')?<video src={c.src} muted/>:<div className="assetPlaceholder">AI</div>}<span><b>{c.title||`Shot ${i+1}`}</b><small>{c.kind||'Production asset'}</small></span></button>)}</div>:<div className="emptyState"><b>Your production assets will appear here</b><span>Generate or import media to begin.</span></div>}</section>
   <div className="feedback"><span>Teach the Brain from the latest result</span><button onClick={()=>rate(5)}>★ Excellent</button><button onClick={()=>rate(3)}>Good</button><button onClick={()=>rate(1)}>Needs work</button><button onClick={()=>setShowBrain(true)}>View Brain</button></div>
   {showBrain&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Vidigen Creative Brain</b><button onClick={()=>setShowBrain(false)}>×</button></div><p>Preference memory learns from explicit feedback. It does not silently retrain third-party models.</p><div className="stats"><div><b>{history.length}</b><span>memories</span></div><div><b>{profile.successCount}</b><span>liked results</span></div><div><b>{profile.preferredTags.length}</b><span>style signals</span></div></div><div className="tags">{profile.preferredTags.length?profile.preferredTags.map(t=><span key={t}>{t}</span>):<small>No style signals yet.</small>}</div><button className="danger" onClick={()=>{setHistory([]);setStatus('Creative memory cleared.')}}>Clear memory</button></div></div>}
-  {showSettings&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Infrastructure</b><button onClick={()=>setShowSettings(false)}>×</button></div><label>Gateway URL</label><input value={gateway} onChange={e=>setGateway(e.target.value)}/><label>Gateway token</label><input type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Server-side auth token"/><div className="settingsNote"><b>Provider status</b><span>{providerInfo?JSON.stringify(providerInfo.providers||providerInfo):'Set the production gateway URL to inspect live provider configuration.'}</span></div><p>Production provider secrets stay on the gateway. Do not ship provider API keys inside the APK.</p><button className="primary" onClick={()=>setShowSettings(false)}>Save</button></div></div>}
+  {!token && supabaseConfigured && <CustomerAuthScreen onAuthenticated={setToken}/>}
+  {showSettings&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Infrastructure</b><button onClick={()=>setShowSettings(false)}>×</button></div><label>Gateway URL</label><input value={gateway} onChange={e=>setGateway(e.target.value)}/><label>Advanced: manual auth token override</label><input type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Only for local dev / GATEWAY_TOKEN — customers should use the sign-in screen, not this field"/>{supabaseConfigured&&token&&<button className="secondary" onClick={async()=>{await supabase.auth.signOut();setToken('')}}>Sign out</button>}<div className="settingsNote"><b>Provider status</b><span>{providerInfo?JSON.stringify(providerInfo.providers||providerInfo):'Set the production gateway URL to inspect live provider configuration.'}</span></div><p>Production provider secrets stay on the gateway. Do not ship provider API keys inside the APK.</p><button className="primary" onClick={()=>setShowSettings(false)}>Save</button></div></div>}
   {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
   <div className="mobileNav">{NAV.slice(0,5).map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>setNav(n)}>{n}</button>)}</div>
  </div>

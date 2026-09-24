@@ -1,0 +1,368 @@
+{
+  "profile": {},
+  "events": [
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789412057.8777158
+    },
+    {
+      "type": "agent_run",
+      "run_id": "97e2ac66b8034c2681840a95bc4190ef",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789412057.8779342
+    },
+    {
+      "type": "agent_run",
+      "run_id": "ab0f5ebb05d34d5cbb8a5417031b3c02",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789412058.3897417
+    },
+    {
+      "type": "agent_run",
+      "run_id": "3254b6a8e81c4024aad2ddbe47e0468e",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789412058.642801
+    },
+    {
+      "type": "agent_run",
+      "run_id": "c9f9d88cb081408c96ca709f828a2c2f",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789529205.0666828
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789529205.14102
+    },
+    {
+      "type": "agent_run",
+      "run_id": "a5832a740ef64abfb4b08bf772741920",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789529205.1413412
+    },
+    {
+      "type": "agent_run",
+      "run_id": "b44f4e9feaa44b44af238721df6de186",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789529205.6734576
+    },
+    {
+      "type": "agent_run",
+      "run_id": "4d677fc61e0743c6a9ec7210f7079dde",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789529244.056517
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789529244.1302364
+    },
+    {
+      "type": "agent_run",
+      "run_id": "8737c2d2580a4536b2c57d834a45ed68",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789529244.130568
+    },
+    {
+      "type": "agent_run",
+      "run_id": "6351591c95324184945b0b5d9d5ccafa",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789529244.6627526
+    },
+    {
+      "type": "agent_run",
+      "run_id": "2a0e17c2baff412b8d8de1750a628952",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789822343.3884883
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789822343.459191
+    },
+    {
+      "type": "agent_run",
+      "run_id": "09fac42240e14c98b6f3d185f041cc29",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789822343.4595194
+    },
+    {
+      "type": "agent_run",
+      "run_id": "6f2bfdb97909406f810d5e02c3820e0f",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789822343.986701
+    },
+    {
+      "type": "agent_run",
+      "run_id": "96da4838e9e84db09cacf6bd7169eab1",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789892364.8200693
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789892364.9006
+    },
+    {
+      "type": "agent_run",
+      "run_id": "4810b3b4548b438791c6067c932cba32",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789892364.9009604
+    },
+    {
+      "type": "agent_run",
+      "run_id": "eed331700c7345298d5a1c16a4e575d6",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789892365.4325364
+    },
+    {
+      "type": "agent_run",
+      "run_id": "bc905c6c33b6444f9483fa25aae047fb",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789892928.697418
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789892928.7742496
+    },
+    {
+      "type": "agent_run",
+      "run_id": "6a0201645bd5469eb12bde034d11331c",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789892928.774616
+    },
+    {
+      "type": "agent_run",
+      "run_id": "2f4637b8891a48e1a76fa0a20e60819e",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789892929.3054194
+    },
+    {
+      "type": "agent_run",
+      "run_id": "6ea7fd34ad6d4afd930b769012df7b37",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789918371.0003264
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789918371.078802
+    },
+    {
+      "type": "agent_run",
+      "run_id": "2fe30ca1c1dc406da5709133bb83e010",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789918371.0792
+    },
+    {
+      "type": "agent_run",
+      "run_id": "ecd0c482e2d741b9bb537e549b348be6",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789918371.6087108
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789942310.548269
+    },
+    {
+      "type": "agent_run",
+      "run_id": "26abcc35783843af9ecec15f913ca058",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789942310.5490587
+    },
+    {
+      "type": "agent_run",
+      "run_id": "ecee5b9e531f4bb893ecd8baeb9e45ca",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789942311.0832262
+    },
+    {
+      "type": "agent_run",
+      "run_id": "518f791d4f9a4c96ad7e31c7c7b5e8ef",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789942311.3367257
+    },
+    {
+      "type": "agent_run",
+      "run_id": "509a8db492a2473a80bcfe1b122f7b75",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789942336.3229706
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789942336.3951619
+    },
+    {
+      "type": "agent_run",
+      "run_id": "11ab9a364b6a499cabe169ad51aa9fc8",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789942336.3960693
+    },
+    {
+      "type": "agent_run",
+      "run_id": "23392d4fdf1d422b85dc556f96a583ca",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789942336.928584
+    },
+    {
+      "type": "agent_run",
+      "run_id": "9e4fe014c98f45b0995b62f32eba86ed",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789969267.6956809
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789969267.7823808
+    },
+    {
+      "type": "agent_run",
+      "run_id": "a8e2874f7a35416f9ea233637732fd8c",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789969267.7829213
+    },
+    {
+      "type": "agent_run",
+      "run_id": "75839c83ed3e4533bbf5ebcfe16ff770",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789969268.3167117
+    },
+    {
+      "type": "agent_run",
+      "run_id": "2f9bbe3defc44ef1a23ea519778d7ec3",
+      "goal": "retry test",
+      "status": "completed",
+      "user_id": null,
+      "completed_steps": 1,
+      "timestamp": 1789986638.4143403
+    },
+    {
+      "event": "agent_run_finished",
+      "user_id": "local-gateway",
+      "timestamp": 1789986638.4906688
+    },
+    {
+      "type": "agent_run",
+      "run_id": "20a8d6cddb0f407588338aaf8d4975b3",
+      "goal": "Review this project request",
+      "status": "completed",
+      "user_id": "local-gateway",
+      "completed_steps": 4,
+      "timestamp": 1789986638.4912279
+    },
+    {
+      "type": "agent_run",
+      "run_id": "5b8c3ace4edc4503a37cf8fd73df2b03",
+      "goal": "Create a 5-second football trailer",
+      "status": "failed",
+      "user_id": "local-gateway",
+      "failed_step": "s5",
+      "error": "503: workflow_api.json is missing. Export an API-format workflow from ComfyUI.",
+      "timestamp": 1789986639.0197535
+    }
+  ]
+}

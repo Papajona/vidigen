@@ -30,6 +30,21 @@ async def get_job(job_id,user_id=None):
     rows=await sb_request('GET','generation_jobs',params=params)
     return rows[0] if rows else None
 
+async def get_job_by_idempotency_key(user_id: str, idempotency_key: str) -> dict | None:
+    """Looks the key up inside the existing `request` jsonb column (PostgREST's `->>`
+    path operator) rather than adding a dedicated column/migration for it — idempotencyKey
+    is already stored there as part of the generation request payload on every job. Scoped
+    to user_id so two different users can't collide on the same client-chosen key. No
+    unique index backs this (see the caller's note on the narrow race that remains)."""
+    if not idempotency_key:
+        return None
+    rows = await sb_request('GET', 'generation_jobs', params={
+        'user_id': f'eq.{user_id}',
+        'request->>idempotencyKey': f'eq.{idempotency_key}',
+        'select': '*', 'order': 'created_at.desc', 'limit': '1',
+    })
+    return rows[0] if rows else None
+
 async def create_agent_run(run_id, user_id, goal, status, plan=None, output=None, error=None):
     if not enabled(): return
     await sb_request('POST','agent_runs',{'id':run_id,'user_id':user_id,'goal':goal,'status':status,'plan':plan or [],'output':output,'error':error})
@@ -152,6 +167,12 @@ async def list_audit_log(limit: int = 100) -> list[dict]:
     return rows or []
 
 # --- 2FA -----------------------------------------------------------------------------------
+# Brute-force lockout policy for TOTP verification. IP-based rate limiting alone is weak
+# against a 6-digit code (1,000,000 combinations) once an attacker can spread attempts
+# across multiple source IPs — this makes the failure count travel with the account instead.
+TWO_FA_MAX_ATTEMPTS = int(os.getenv('VIDIGEN_2FA_MAX_ATTEMPTS', '5'))
+TWO_FA_LOCKOUT_MINUTES = int(os.getenv('VIDIGEN_2FA_LOCKOUT_MINUTES', '15'))
+
 async def get_2fa_secret(uid: str) -> str | None:
     rows = await sb_request('GET', 'admin_2fa', params={'uid': f'eq.{uid}', 'select': 'secret'})
     return rows[0]['secret'] if rows else None
@@ -161,6 +182,42 @@ async def enroll_2fa(uid: str, secret: str):
 
 async def has_2fa_enrolled(uid: str) -> bool:
     return await get_2fa_secret(uid) is not None
+
+async def get_2fa_lock_state(uid: str) -> dict:
+    """Returns {'locked_until': iso-str-or-None, 'failed_attempts': int}. A row missing
+    (not yet enrolled) reads as unlocked with zero attempts — enrollment itself is gated
+    separately (an account must already be a verified admin to enroll at all)."""
+    rows = await sb_request('GET', 'admin_2fa', params={'uid': f'eq.{uid}', 'select': 'failed_attempts,locked_until'})
+    if not rows:
+        return {'locked_until': None, 'failed_attempts': 0}
+    return {'locked_until': rows[0].get('locked_until'), 'failed_attempts': rows[0].get('failed_attempts', 0)}
+
+async def is_2fa_locked(uid: str) -> tuple[bool, str | None]:
+    from datetime import datetime
+    state = await get_2fa_lock_state(uid)
+    locked_until = state.get('locked_until')
+    if not locked_until:
+        return False, None
+    until = datetime.fromisoformat(str(locked_until).replace('Z', '+00:00'))
+    if until > datetime.now(until.tzinfo):
+        return True, locked_until
+    return False, None  # Lock has expired — caller can proceed; record_2fa_failure/reset will update the row as needed.
+
+async def record_2fa_failure(uid: str):
+    """Increments the failure counter and, once TWO_FA_MAX_ATTEMPTS is reached, sets
+    locked_until. Read-then-write rather than an atomic RPC — this table is small, checked
+    only on the admin-login path (not a hot path), and a lost increment under concurrent
+    failed attempts only makes lockout trigger a little later, never a security hole."""
+    from datetime import datetime, timedelta, timezone
+    state = await get_2fa_lock_state(uid)
+    attempts = int(state.get('failed_attempts', 0)) + 1
+    patch: dict = {'failed_attempts': attempts}
+    if attempts >= TWO_FA_MAX_ATTEMPTS:
+        patch['locked_until'] = (datetime.now(timezone.utc) + timedelta(minutes=TWO_FA_LOCKOUT_MINUTES)).isoformat()
+    await sb_request('PATCH', 'admin_2fa', patch, params={'uid': f'eq.{uid}'})
+
+async def reset_2fa_failures(uid: str):
+    await sb_request('PATCH', 'admin_2fa', {'failed_attempts': 0, 'locked_until': None}, params={'uid': f'eq.{uid}'})
 
 async def create_2fa_session(uid: str, session_token: str, expires_at_iso: str):
     await sb_request('POST', 'admin_2fa_sessions', {'session_token': session_token, 'uid': uid, 'expires_at': expires_at_iso})

@@ -60,6 +60,24 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
 log = logging.getLogger('vidigen.gateway')
 
+# Detects a real, specific footgun rather than a generic "is this cloud?" guess: K_SERVICE
+# is documented by Google as auto-injected into every Cloud Run container (confirmed against
+# Cloud Run's own docs, not assumed) — so its presence is a reliable signal, not a heuristic.
+# COMFY_URL pointing at a loopback address only ever works when a local ComfyUI process is
+# reachable at that address, which is never true inside a Cloud Run container: nothing else
+# is running in it. Without this check, that specific misconfiguration fails silently as
+# ordinary-looking connection-refused errors on every generation request, with no signal
+# pointing at the actual cause.
+if os.getenv('K_SERVICE') and ('127.0.0.1' in COMFY_URL or 'localhost' in COMFY_URL):
+    log.warning(
+        f'COMFY_URL is set to a loopback address ({COMFY_URL}) but this process is running '
+        'on Cloud Run (K_SERVICE is set) — there is no local ComfyUI instance reachable from '
+        'inside this container, so any request routed to it will fail. Point COMFY_URL at a '
+        'separately-hosted ComfyUI server if you need it, or leave generation to the '
+        'cloud-provider routes (Replicate/Seedance/Runway) that do work here.'
+    )
+
+
 OLLAMA_URL=os.getenv('OLLAMA_URL','http://127.0.0.1:11434').rstrip('/')
 OLLAMA_MODEL=os.getenv('OLLAMA_MODEL','llama3.2')
 OUTPUT_CAP_TTL=int(os.getenv('VIDIGEN_OUTPUT_CAP_TTL','300'))
@@ -177,6 +195,11 @@ class Generate(BaseModel):
  scene:dict[str,Any]=Field(default_factory=dict)
  sourceUrl:str|None=Field(default=None,max_length=2048)
  model:str=Field(default='auto',max_length=64)
+ # Optional client-supplied key so a retried request (double-click, flaky network, client
+ # retry logic) doesn't create a second billed job. Scoped per-user — same key from two
+ # different users is not a collision. Not required: omitting it just means no dedup for
+ # that request, same as before this field existed.
+ idempotencyKey:str|None=Field(default=None,min_length=1,max_length=128,pattern=r'^[A-Za-z0-9_-]{1,128}$')
 class Memory(BaseModel):
  model_config=ConfigDict(extra='forbid')
  prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
@@ -472,10 +495,20 @@ async def admin_2fa_verify(req: TwoFactorVerifyRequest, request: Request, user=D
     secret = await persistence.get_2fa_secret(uid)
     if not secret:
         raise HTTPException(400, '2FA is not enrolled for this account yet.')
+    # Account-level lockout, additive to the gateway's IP-based RateLimitMiddleware: a
+    # 6-digit TOTP code (1,000,000 combinations) is guessable within a rate limiter's budget
+    # if an attacker spreads attempts across enough source IPs. Locking the account itself
+    # closes that gap regardless of how many IPs are used.
+    locked, locked_until = await persistence.is_2fa_locked(uid)
+    if locked:
+        log.warning(f'2FA verify attempt for locked-out admin {uid} (locked_until={locked_until})')
+        raise HTTPException(429, f'Too many failed codes. This account is locked until {locked_until}.')
     from gateway.two_factor import verify_code, generate_session_token, session_expiry
     if not verify_code(secret, req.code):
+        await persistence.record_2fa_failure(uid)
         log.warning(f'Failed 2FA attempt for admin {uid}')
         raise HTTPException(401, 'Invalid or expired code.')
+    await persistence.reset_2fa_failures(uid)
     session_token = generate_session_token()
     expires_at = session_expiry(hours=4)
     await persistence.create_2fa_session(uid, session_token, expires_at.isoformat())
@@ -688,6 +721,14 @@ async def admin_release_readiness(request: Request, _=Depends(require_admin)):
     except Exception:
         pass
     from gateway import billing as _billing
+    from gateway import moderation as _moderation
+    # Output moderation now fails CLOSED by default (VIDIGEN_MODERATION_ENFORCE=true) — a
+    # missing REPLICATE_API_TOKEN means every generation gets blocked at delivery, not
+    # silently allowed through. That's the correct default, but it also means an
+    # unconfigured token is now a real outage, not a soft gap — so it belongs in the
+    # readiness gate rather than something an operator only discovers via a wave of
+    # blocked-output support tickets.
+    output_moderation_ready = (not _moderation.MODERATION_ENFORCE) or bool(os.getenv('REPLICATE_API_TOKEN'))
     checks = {
         'supabase_configured': persistence.enabled(),
         'supabase_reachable': supabase_ok,
@@ -697,13 +738,19 @@ async def admin_release_readiness(request: Request, _=Depends(require_admin)):
         'captions_engine_installed': whisper_ok,
         'real_generation_route_available': any(providers.values()),
         'admin_2fa_required': ADMIN_2FA_REQUIRED,
+        'output_moderation_ready': output_moderation_ready,
+    }
+    moderation_status = {
+        'enforce': _moderation.MODERATION_ENFORCE,
+        'prompt_moderation_engine': 'groq' if os.getenv('GROQ_API_KEY') else 'keyword-fallback (narrow coverage — see gateway/moderation.py)',
+        'output_moderation_configured': bool(os.getenv('REPLICATE_API_TOKEN')),
     }
     # Billing status is informational, not a readiness gate: a dev/test deployment that
     # hasn't configured live Paystack keys yet is still legitimately "ready" for everything
     # else. Folding this into `checks` (which `ready` is computed from) would make the
     # overall health check falsely report unready for that entirely normal situation.
     billing_status = {'paystack_configured': bool(_billing.PAYSTACK_SECRET), 'billing_enforced': _billing.BILLING_ENFORCE}
-    return {'ready': all(checks.values()), 'checks': checks, 'providers': providers, 'billing': billing_status, 'notes': [
+    return {'ready': all(checks.values()), 'checks': checks, 'providers': providers, 'billing': billing_status, 'moderation': moderation_status, 'notes': [
         'Billing (Paystack subscriptions + credit ledger) is implemented — see gateway/billing.py and the `billing` field above. Google Pay is TEST-mode only; production Google Pay is intentionally gated pending a confirmed production processor (see /api/billing/google-pay/status).',
         'Native Android rendering still requires a successful Gradle release build on a machine with the Android SDK/Gradle dependencies installed.',
         'Frontend/native crash telemetry is outside the gateway and must be verified on the target deployment platform.'
@@ -1262,7 +1309,6 @@ async def providers(request:Request,_=Depends(auth)):
     ])
     return {'providers': registry.list(), 'production_policy': 'Only configured providers are eligible for execution.'}
 
-@app.post('/api/generate')
 async def _bill_generation(user: dict | None, req: Generate) -> dict:
     from gateway.billing import consume_credits
     if not user or user.get('role') == 'gateway' or not user.get('sub'):
@@ -1273,13 +1319,33 @@ async def _bill_generation(user: dict | None, req: Generate) -> dict:
     return await consume_credits(user['sub'], operation, model, duration_seconds, metadata={'mode':req.mode,'prompt_hash':__import__('hashlib').sha256(req.prompt.encode()).hexdigest()})
 
 
+@app.post('/api/generate')
 async def generate(req:Generate,request:Request,user=Depends(auth)):
     """Create a persistent generation job and route it to the selected real provider."""
+    from gateway.moderation import moderate_prompt
+    prompt_check=await moderate_prompt(req.prompt)
+    if not prompt_check['safe']:
+        log.warning(f'Blocked prompt from user {(user or {}).get("sub","anon")}: {prompt_check.get("reason")}')
+        raise HTTPException(422, f'This prompt was flagged and cannot be generated: {prompt_check.get("reason") or "policy violation"}')
     requested=(getattr(req,'model',None) or 'auto').lower() if hasattr(req,'model') else 'auto'
     provider_name='replicate' if requested in ('auto','replicate') and 'replicate' in PROVIDERS and os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL') else 'local'
     if requested in ('seedance','runway'):
         provider_name=requested
     user_id=(user or {}).get('sub') if user else None
+    if req.idempotencyKey and user_id and persistence.enabled():
+        # Return the existing job instead of billing/submitting again. Best-effort: a
+        # concurrent retry racing the first request past this check can still create two
+        # jobs (no unique constraint backs this yet — see idempotencyKey note in the
+        # Generate model), but this closes the common case (client retry after a slow
+        # response, double-click) without requiring a schema migration to ship.
+        existing=await persistence.get_job_by_idempotency_key(user_id, req.idempotencyKey)
+        if existing:
+            log.info(f'Idempotent replay for user {user_id}, key {req.idempotencyKey}: returning existing job {existing["id"]}')
+            existing_request=existing.get('request') or {}
+            external_id=existing_request.get('_external_id')
+            if existing['id'] not in JOB_CACHE and external_id:
+                JOB_CACHE[existing['id']]={'provider':existing['provider'],'external_id':external_id,'user_id':user_id,'request':existing_request}
+            return {'promptId':existing['id'],'provider':existing['provider'],'status':existing.get('status','processing'),'externalJobId':external_id,'idempotentReplay':True}
     request_payload=req.model_dump()
     if provider_name in PROVIDERS and provider_name != 'local':
         billing_receipt=await _bill_generation(user, req)
@@ -1348,6 +1414,32 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
         try:
             result=await PROVIDERS[provider].status(external)
             if result.status.lower() in ('succeeded','completed','successful','complete') and result.output_url:
+                # Output moderation happens ONCE per job, cached on the job record — not
+                # re-run on every poll a client makes while waiting, which would otherwise
+                # mean repeated Replicate charges and repeated ffmpeg frame extraction for
+                # the same single output.
+                mod_result=job.get('_moderation')
+                if mod_result is None:
+                    from gateway.moderation import moderate_output_video, moderate_output_image
+                    op=(job.get('request') or {}).get('mode','')
+                    mod_result=await (moderate_output_image(result.output_url) if 'image' in str(op).lower() else moderate_output_video(result.output_url))
+                    job['_moderation']=mod_result
+                    JOB_CACHE[prompt_id]=job
+                if not mod_result.get('safe'):
+                    # Blocks both on an actual classifier hit (checked=True) and on
+                    # "moderation could not run and enforcement requires a check"
+                    # (checked=False, safe=False) — see gateway/moderation.py's
+                    # VIDIGEN_MODERATION_ENFORCE policy. checked still distinguishes the two
+                    # for logging/audit even though both now block delivery.
+                    log.warning(f'Blocked output for job {prompt_id}, user {(user or {}).get("sub","anon")}: {mod_result.get("reason")}')
+                    if persistence.enabled() and user and user.get('sub'):
+                        billing_info=(job.get('request') or {}).get('_billing') or {}
+                        charged=int(billing_info.get('charged') or 0)
+                        if charged:
+                            from gateway.billing import refund_credits
+                            await refund_credits(user['sub'],charged,'moderation_blocked',{'job_id':prompt_id})
+                        await persistence.update_job(prompt_id,status='blocked',error='Output failed content moderation.')
+                    return {'status':'error','error':'This generation was blocked by content moderation. Any credits charged have been refunded.'}
                 if persistence.enabled() and user and user.get('sub'): await persistence.update_job(prompt_id,status='completed',completed_at=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
                 if user and user.get('sub'): asyncio.create_task(_auto_learn_output(user,prompt_id,result.output_url,provider))
                 return {'status':'complete','videoUrl':result.output_url,'provider':provider}

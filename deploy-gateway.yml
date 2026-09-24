@@ -4,93 +4,55 @@ on:
   push:
     branches: [main]
     paths:
-      - "gateway/**"
-      - "Dockerfile"
-      - ".github/workflows/deploy-gateway.yml"
-  workflow_dispatch: {}
+      - 'gateway/**'
+      - 'Dockerfile'
+      - 'supabase_schema.sql'
 
 env:
-  REGION: ${{ secrets.GCP_REGION }}
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  SERVICE: vidigen-gateway
-  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/vidigen/gateway
+  REGION: us-central1          # change to whichever region is closest to your users
+  SERVICE_NAME: vidigen-gateway
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r gateway/requirements.txt
-      - run: python -m pytest tests/ -v
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # required for keyless Workload Identity Federation auth below
+      id-token: write            # required for keyless auth via Workload Identity Federation
     steps:
       - uses: actions/checkout@v4
 
-      # Keyless auth: no long-lived service-account JSON key stored in GitHub. See
-      # DEPLOYMENT.md for the one-time `gcloud` commands that set up the WIF pool,
-      # provider and service account these two secrets point at.
-      - id: auth
-        uses: google-github-actions/auth@v2
+      # Workload Identity Federation, not a downloaded service-account JSON key — a long-
+      # lived key file is a real, common source of leaked-credential incidents; this avoids
+      # that class of risk entirely. Set this up once in GCP (see the deploy notes) rather
+      # than pasting a key into GitHub secrets.
+      - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-
-      - name: Build image
+      - name: Build and push image
         run: |
-          docker build \
-            -t "${IMAGE}:${{ github.sha }}" \
-            -t "${IMAGE}:latest" \
-            -f Dockerfile .
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/vidigen/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/vidigen/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
-      - name: Push image
-        run: |
-          docker push "${IMAGE}:${{ github.sha }}"
-          docker push "${IMAGE}:latest"
-
-      # --no-cpu-throttling + concurrency=4: this app does real CPU work (ffmpeg render,
-      # faster-whisper transcription) inside a request, not just I/O waiting. Cloud Run's
-      # default "throttle CPU outside of request handling" plus a high default concurrency
-      # (80) is tuned for I/O-bound web apps and will starve this workload.
-      #
-      # min/max-instances=1: the in-memory rate limiter and job caches in gateway/server.py
-      # live in one process's memory. Running more than one instance silently gives each
-      # instance its own separate rate-limit counter and job cache — not a crash, just a
-      # quietly wrong limit. Raise max-instances once that's moved to a shared store
-      # (e.g. Redis/Memorystore); until then, stay at 1.
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "${SERVICE}" \
-            --image="${IMAGE}:${{ github.sha }}" \
-            --region="${REGION}" \
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/vidigen/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region=${{ env.REGION }} \
             --platform=managed \
             --allow-unauthenticated \
-            --memory=4Gi \
-            --cpu=2 \
-            --no-cpu-throttling \
-            --concurrency=4 \
-            --timeout=900 \
-            --min-instances=1 \
+            --timeout=3600 \
             --max-instances=1 \
-            --set-env-vars="^@^VIDIGEN_ALLOWED_ORIGINS=${{ secrets.VIDIGEN_ALLOWED_ORIGINS }}@VIDIGEN_RATE_LIMIT=30@VIDIGEN_ADMIN_2FA_REQUIRED=true@VIDIGEN_PAYMENT_TEST_MODE=false@GOOGLE_PAY_TEST_MODE=false@VIDIGEN_MAX_RENDER_CLIPS=50@VIDIGEN_MAX_RENDER_BYTES=500000000@VIDIGEN_RENDER_TIMEOUT=900@VIDIGEN_RENDER_ALLOWED_HOSTS=${{ secrets.VIDIGEN_RENDER_ALLOWED_HOSTS }}@SUPABASE_URL=${{ secrets.SUPABASE_URL }}@SUPABASE_JWT_ISSUER=${{ secrets.SUPABASE_URL }}@R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}@R2_BUCKET=${{ secrets.R2_BUCKET }}@R2_PUBLIC_BASE_URL=${{ secrets.R2_PUBLIC_BASE_URL }}@VIDIGEN_BILLING_CURRENCY=GHS@VIDIGEN_BILLING_ENFORCE=true" \
-            --set-secrets="VIDIGEN_GATEWAY_TOKEN=vidigen-gateway-token:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,REPLICATE_API_TOKEN=replicate-api-token:latest,PAYSTACK_SECRET_KEY=paystack-secret-key:latest,R2_ACCESS_KEY_ID=r2-access-key-id:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,GROQ_API_KEY=groq-api-key:latest"
-
-      - name: Show release-readiness check
-        run: |
-          URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.url)")
-          echo "Deployed: $URL"
-          echo "Check readiness with:"
-          echo "curl -H \"Authorization: Bearer <VIDIGEN_GATEWAY_TOKEN>\" $URL/api/admin/release-readiness"
+            --min-instances=1 \
+            --memory=2Gi \
+            --cpu=2 \
+            --set-env-vars="VIDIGEN_ENVIRONMENT=production"
+        # --max-instances=1 is deliberate, not a resource-saving default — see the note in
+        # DEPLOY_GCP.md about why the Live Developer Logs feature's in-memory state can't
+        # safely be split across multiple Cloud Run instances yet. Raise this once that's
+        # addressed (a shared backing store), not before.

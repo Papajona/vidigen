@@ -267,15 +267,44 @@ def create_agent_router(auth_dependency):
     @router.get("/runs/{run_id}")
     async def run_status(run_id: str, user=Depends(auth_dependency)) -> Dict[str, Any]:
         run = RUNS.get(run_id)
-        if not run or not _owned(run, user):
-            raise HTTPException(404, "Agent run not found")
-        return _serialize(run)
+        if run and _owned(run, user):
+            return _serialize(run)
+        # Real bug, found and fixed here: RUNS is in-memory and per-process. Under any
+        # horizontally-scaled deployment (Cloud Run with more than one instance, which this
+        # project's own deploy config currently avoids for exactly this reason among others —
+        # see DEPLOY_GCP.md), a poll request landing on a different instance than the one
+        # that created the run would 404 even though the run is genuinely still in progress,
+        # just invisible to this process's memory. Falling back to the Supabase-persisted
+        # copy (already written by create_agent_run/update_agent_run) fixes reads regardless
+        # of which instance handles the request — this is the fix, not just a workaround.
+        if persistence.enabled():
+            uid = (user or {}).get("sub")
+            row = await persistence.get_agent_run(run_id, user_id=uid)
+            if row:
+                return {
+                    "run_id": row.get("id"), "goal": row.get("goal"), "status": row.get("status"),
+                    "user_id": row.get("user_id"), "created_at": row.get("created_at"),
+                    "updated_at": row.get("updated_at"), "messages": [],
+                    "steps": row.get("plan") or [], "output": row.get("output"),
+                    "source": "supabase_fallback",  # honest signal to the caller that this
+                    # came from the persisted snapshot, not the live in-process run — a
+                    # polling client can tell the difference if it matters to them.
+                }
+        raise HTTPException(404, "Agent run not found")
 
     @router.post("/runs/{run_id}/cancel")
     async def cancel(run_id: str, req: CancelRequest, user=Depends(auth_dependency)) -> Dict[str, Any]:
         run = RUNS.get(run_id)
         if not run or not _owned(run, user):
-            raise HTTPException(404, "Agent run not found")
+            # NOT given the same Supabase fallback as run_status above, deliberately — a
+            # cancel has to reach the actual asyncio.Task executing the run, which only
+            # exists in the memory of whichever instance is running it. Marking a row
+            # "cancelled" in Supabase from a different instance wouldn't stop the real task,
+            # which would be worse than a clear 404: it would look cancelled while still
+            # running and still spending credits/provider cost. A correct cross-instance
+            # cancel needs a message queue routing the request to the right instance — real
+            # scope beyond this fix, not something to fake here.
+            raise HTTPException(404, "Agent run not found on this instance — cancellation must reach the instance actively running it.")
         task = TASKS.get(run_id)
         if task and not task.done():
             task.cancel()
