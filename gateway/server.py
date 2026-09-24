@@ -1428,14 +1428,15 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
 
 @app.get('/api/providers')
 async def providers(request:Request,_=Depends(auth)):
-    from gateway.provider_registry import ProviderRegistry, ProviderSpec
-    registry=ProviderRegistry([
-        ProviderSpec('replicate','video', 'REPLICATE_API_TOKEN'),
-        ProviderSpec('seedance','video', 'SEEDANCE_API_TOKEN'),
-        ProviderSpec('runway','video', 'RUNWAY_API_TOKEN'),
-        ProviderSpec('avatar-gateway','avatar', 'AVATAR_API_TOKEN'),
-    ])
-    return {'providers': registry.list(), 'production_policy': 'Only configured providers are eligible for execution.'}
+    # Report actual execution readiness, not merely whether a single credential exists.
+    # Replicate requires both token + model; Seedance/Runway require URL + token.
+    providers=[
+        {'key':'replicate','capability':'video','configured':bool(os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL'))},
+        {'key':'seedance','capability':'video','configured':bool(os.getenv('SEEDANCE_API_URL') and os.getenv('SEEDANCE_API_TOKEN'))},
+        {'key':'runway','capability':'video','configured':bool(os.getenv('RUNWAY_API_URL') and os.getenv('RUNWAY_API_TOKEN'))},
+        {'key':'avatar-gateway','capability':'avatar','configured':bool(os.getenv('AVATAR_API_TOKEN'))},
+    ]
+    return {'providers':providers, 'production_policy':'Only configured providers are eligible for execution.', 'failover':'Configured video providers are tried in VIDIGEN_PROVIDER_PRIORITY order; accepted jobs can fail over during status polling without a second charge.'}
 
 async def _bill_generation(user: dict | None, req: Generate) -> dict:
     from gateway.billing import consume_credits, enforce_free_daily_feature
