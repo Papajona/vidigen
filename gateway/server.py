@@ -1583,8 +1583,28 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     log.exception('Failed to update generation job during provider failover')
 
             provider=PROVIDERS[provider_name]
+            provider_input=request_payload.get('input',request_payload)
+            if provider_name == 'replicate' and isinstance(provider_input,dict):
+                duration_value=provider_input.get('duration',5)
+                duration_value=int(str(duration_value).rstrip('s')) if isinstance(duration_value,str) else int(duration_value)
+                ratio_value=provider_input.get('ratio') or provider_input.get('aspect_ratio') or '16:9'
+                provider_input={
+                    'prompt':provider_input.get('prompt',''),
+                    'duration':duration_value,
+                    'aspect_ratio':ratio_value,
+                    'resolution':provider_input.get('resolution','720p'),
+                    'generate_audio':bool(provider_input.get('generate_audio',True)),
+                }
+                source_url=provider_input.get('sourceUrl') if isinstance(provider_input,dict) else None
+                mode_text=str(request_payload.get('mode') or '').lower()
+                original_source=request_payload.get('sourceUrl')
+                if original_source:
+                    if 'image' in mode_text:
+                        provider_input['image']=original_source
+                    elif 'video' in mode_text:
+                        provider_input['reference_videos']=[original_source]
             try:
-                result=await provider.submit({'input':request_payload.get('input',request_payload)})
+                result=await provider.submit({'input':provider_input})
                 if not result.job_id:
                     raise ProviderError(f'{provider_name.title()} returned no job ID.')
             except ProviderError as e:
