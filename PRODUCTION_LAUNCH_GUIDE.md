@@ -6,10 +6,10 @@
 Customer's browser / Android app
         │
         ├── static frontend (React/Vite build) ──────► Cloudflare Pages
-        │                                                (DNS: vidigen.com)
+        │                                                (DNS: vidigen.online)
         │
         └── API calls ────────────────────────────────► Google Cloud Run
-                                                           (DNS: api.vidigen.com,
+                                                           (DNS: api.vidigen.online,
                                                             proxied through Cloudflare)
                                                                 │
                               ┌─────────────────────────────────┼───────────────────┐
@@ -39,7 +39,7 @@ support at all).
      Console (APIs & Services → Credentials → OAuth client ID → Web application). Add
      Supabase's callback URL (shown on the provider config page) as an authorized redirect.
 4. **Authentication → URL Configuration** → set your production frontend URL
-   (`https://vidigen.com`) as the Site URL, and add it to Redirect URLs — Google sign-in
+   (`https://vidigen.online`) as the Site URL, and add it to Redirect URLs — Google sign-in
    will fail silently otherwise.
 5. **Project Settings → API**, copy three values:
    - Project URL → used as **both** `SUPABASE_URL` and `SUPABASE_JWT_ISSUER` (gateway) and
@@ -62,7 +62,7 @@ support at all).
    access) → gives you an access key ID and secret.
 3. Turn on public access for the bucket (Settings → Public Access) — either the free
    `*.r2.dev` subdomain for testing, or connect a real custom domain
-   (`media.vidigen.com`) for production. This becomes `R2_PUBLIC_BASE_URL`.
+   (`media.vidigen.online`) for production. This becomes `R2_PUBLIC_BASE_URL`.
 4. `R2_ENDPOINT` = `https://<your-cloudflare-account-id>.r2.cloudflarestorage.com`
    (account ID is on the R2 overview page).
 
@@ -75,7 +75,7 @@ support at all).
   fallback): console.groq.com → API Keys → `GROQ_API_KEY`.
 - **Paystack**: dashboard.paystack.com → Settings → API Keys & Webhooks. You'll have both
   test and live keys — **use the test key until you've verified checkout end-to-end**, then
-  switch. Set the webhook URL to `https://api.vidigen.com/api/billing/webhook/paystack`.
+  switch. Set the webhook URL to `https://api.vidigen.online/api/billing/webhook/paystack`.
 - **Sentry** (optional but recommended before public launch): sentry.io → new project →
   copy the DSN → `SENTRY_DSN` (gateway) and `VITE_SENTRY_DSN` (frontend, separate DSN or
   same project, your call).
@@ -103,7 +103,7 @@ Using the `Dockerfile` and `.github/workflows/deploy-gateway.yml` already in thi
    - `VIDIGEN_PAYMENT_TEST_MODE=false` (defaults to `true` in `.env.example` — deploying
      with this still on means no real payment is ever actually processed)
    - `PAYSTACK_SECRET_KEY` → your **live** key, not the test one
-7. In Cloudflare DNS, add a CNAME/A record for `api.vidigen.com` pointing at the Cloud Run
+7. In Cloudflare DNS, add a CNAME/A record for `api.vidigen.online` pointing at the Cloud Run
    service's URL, proxied (orange cloud) through Cloudflare for DDoS protection/caching.
 
 I verified two real constraints on Cloud Run earlier in this project, worth repeating here
@@ -118,10 +118,10 @@ Logs dashboard feature only works correctly with a single instance
    this GitHub repo.
 2. Build settings: build command `npm run build`, output directory `dist`.
 3. **Environment variables** (Pages project settings, not the gateway's):
-   `VITE_VIDIGEN_GATEWAY_URL=https://api.vidigen.com`, `VITE_SUPABASE_URL`,
+   `VITE_VIDIGEN_GATEWAY_URL=https://api.vidigen.online`, `VITE_SUPABASE_URL`,
    `VITE_SUPABASE_ANON_KEY`, and the Google Pay/Sentry `VITE_*` vars from
    `.env.example` as needed.
-4. Add your custom domain (`vidigen.com`) under the Pages project's **Custom domains** tab
+4. Add your custom domain (`vidigen.online`) under the Pages project's **Custom domains** tab
    — since the domain's already on Cloudflare, this is a few clicks, not a DNS migration.
 5. Every push to `main` now auto-deploys the frontend. No separate GitHub Action needed for
    this half — Cloudflare Pages' GitHub integration handles it directly.
@@ -130,7 +130,7 @@ Logs dashboard feature only works correctly with a single instance
 
 Both already flagged earlier in this project, repeating because they bite silently:
 1. Add your real production frontend origin to `VIDIGEN_ALLOWED_ORIGINS` on the gateway —
-   `https://vidigen.com`, not just the localhost defaults in `.env.example`.
+   `https://vidigen.online`, not just the localhost defaults in `.env.example`.
 2. If you also ship the Android app, add `https://localhost` too (Capacitor's default
    WebView origin) — otherwise the compiled app's API calls get silently blocked by CORS.
 
@@ -143,12 +143,12 @@ Both already flagged earlier in this project, repeating because they bite silent
 - [ ] Ran the Automated Testing suite from the `/admin` dashboard against production once
 - [ ] Confirmed Sentry actually receives a test error (trigger one deliberately, check the
       Sentry dashboard)
-- [ ] Content moderation is still a real, open gap — flagged a few turns back and still
-      unbuilt. Nothing currently screens generated output before a customer sees it.
+- [ ] Confirmed output moderation enforcement on a real provider output. The gateway now checks
+      completed image/video outputs before delivery when moderation enforcement is enabled.
 - [ ] Decided on Backup & Rollback's actual retention/testing cadence — it's built, but a
       backup you've never test-restored isn't a backup you can trust yet.
 
-## What I have not personally verified end-to-end
+## What still requires real-account verification before public launch
 
 I have never had a real Supabase project, Google Cloud account, or Cloudflare zone
 connected to my sandbox — everything above is correct as far as I can verify by reading the
