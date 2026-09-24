@@ -68,3 +68,51 @@ def test_generate_fails_over_to_next_configured_provider():
     assert body['fallbackUsed'] is True
     assert body['providerAttempts'] == ['replicate', 'seedance']
     assert body['externalJobId'] == 'seedance-job-1'
+
+
+def test_status_fails_over_when_accepted_provider_later_fails():
+    failed = _FakeProvider('replicate')
+    fallback = _FakeProvider('seedance')
+
+    async def failed_status(job_id, status_url=None):
+        return GenerationResult('replicate', job_id, 'failed', None, {'error': 'provider job failed'})
+
+    failed.status = failed_status
+
+    job_id = 'status-fallback-job'
+    original = server.JOB_CACHE.get(job_id)
+    server.JOB_CACHE[job_id] = {
+        'provider': 'replicate',
+        'external_id': 'replicate-job-1',
+        'user_id': 'local-gateway',
+        'request': {
+            'prompt': 'a cinematic city at sunset',
+            'mode': 'Text → Video',
+            '_billing': {'charged': 0},
+            '_provider_candidates': ['replicate', 'seedance', 'runway'],
+            '_provider_attempts': ['replicate'],
+        },
+    }
+
+    async def call():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+            return await client.get(
+                f'/api/status/{job_id}',
+                headers={'Authorization': 'Bearer test-token'},
+            )
+
+    try:
+        with patch.dict(server.PROVIDERS, {'replicate': failed, 'seedance': fallback}, clear=False),              patch.object(server.persistence, 'enabled', return_value=False):
+            response = asyncio.run(call())
+        assert response.status_code == 200
+        body = response.json()
+        assert body['status'] == 'running'
+        assert body['provider'] == 'seedance'
+        assert body['fallbackUsed'] is True
+        assert body['providerAttempts'] == ['replicate', 'seedance']
+    finally:
+        if original is None:
+            server.JOB_CACHE.pop(job_id, None)
+        else:
+            server.JOB_CACHE[job_id] = original
