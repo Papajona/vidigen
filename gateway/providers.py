@@ -29,9 +29,12 @@ class ReplicateProvider:
     name='replicate'
     def __init__(self): self.token=os.getenv('REPLICATE_API_TOKEN',''); self.model=os.getenv('REPLICATE_MODEL','')
     async def submit(self,request):
-        if not self.token or not self.model: raise ProviderError('Replicate is not configured on the server.')
+        token=self.token
+        model=str(request.get('model') or self.model)
+        if not token or not model: raise ProviderError('Replicate is not configured on the server.')
+        provider_input=request.get('input',request)
         async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
-            r=await c.post(f'https://api.replicate.com/v1/models/{self.model}/predictions',headers={'Authorization':f'Bearer {self.token}','Content-Type':'application/json'},json={'input':request.get('input',request)})
+            r=await c.post(f'https://api.replicate.com/v1/models/{model}/predictions',headers={'Authorization':f'Bearer {token}','Content-Type':'application/json'},json={'input':provider_input})
         if r.status_code>=400:
             detail=r.text[:800].replace('\\n',' ')
             raise ProviderError(f'Replicate rejected the request ({r.status_code}): {detail}')
@@ -134,7 +137,7 @@ async def _poll_replicate_prediction(prediction: dict, token: str, timeout_secon
 # Capability metadata used by the Agent/provider router. An entry is considered
 # production-usable only when its required server-side configuration exists.
 PROVIDER_CAPABILITIES = {
-    'replicate': {'capabilities': ['video','image','image-to-video','video-to-video'], 'configured_by': ['REPLICATE_API_TOKEN','REPLICATE_MODEL']},
+    'replicate': {'capabilities': ['video','image','image-to-video','video-to-video'], 'configured_by': ['REPLICATE_API_TOKEN','REPLICATE_MODEL','REPLICATE_IMAGE_MODEL']},
     'seedance': {'capabilities': ['video'], 'configured_by': ['SEEDANCE_API_URL','SEEDANCE_API_TOKEN']},
     'runway': {'capabilities': ['video'], 'configured_by': ['RUNWAY_API_URL','RUNWAY_API_TOKEN']},
 }
