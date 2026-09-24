@@ -129,6 +129,8 @@ Settings → Secrets and variables → Actions, add:
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` (public client URL) |
 | `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key for the browser client |
 | `VITE_SENTRY_DSN` | optional |
+| `GEMINI_API_KEY` | optional server-side Gemini API key; never put it in a `VITE_*` secret |
+| `GEMINI_MODEL` | optional, defaults to `gemini-2.5-flash` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | only if using `deploy-frontend.yml` instead of the Pages dashboard |
 
 Push to `main` and `deploy-gateway.yml` runs: installs deps, runs `tests/`, builds the
