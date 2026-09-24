@@ -16,8 +16,11 @@ async def sb_request(method,path,json_body=None,params=None):
     if r.status_code>=400: raise PersistenceError(f'Supabase request failed ({r.status_code}).')
     return r.json() if r.content else []
 
-async def create_job(user_id, project_id, provider, model, request):
-    rows=await sb_request('POST','generation_jobs',{'user_id':user_id,'project_id':project_id,'provider':provider,'model':model,'request':request,'status':'queued'})
+async def create_job(user_id, project_id, provider, model, request, idempotency_key: str | None = None):
+    body={'user_id':user_id,'project_id':project_id,'provider':provider,'model':model,'request':request,'status':'queued'}
+    if idempotency_key:
+        body['idempotency_key']=idempotency_key
+    rows=await sb_request('POST','generation_jobs',body)
     return rows[0]['id'] if rows else None
 
 async def update_job(job_id, **fields):
