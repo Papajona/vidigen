@@ -162,28 +162,29 @@ Then open the developer dashboard, enroll TOTP 2FA, and verify the first 6-digit
 
 ### Frontend: Cloudflare Worker
 
-GitHub Actions runs `.github/workflows/deploy-frontend.yml`: `npm ci` → `npm test` → `npm run build` → `wrangler@4 deploy` using `wrangler.jsonc` and the `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets.
+GitHub Actions runs `.github/workflows/deploy-frontend.yml`: `npm ci` → `npm test` → `npm run build` → `wrangler@4 deploy`.
 
-The Worker serves the built `dist/` assets and uses the SPA fallback configured in `wrangler.jsonc`. Add the Worker/domain route you want in the Cloudflare dashboard and point your public site hostname to this Worker.
+The deployed Worker is **`vidigen-ai.affuljona.workers.dev`**. It serves the built `dist/` assets with the SPA fallback configured in `wrangler.jsonc`.
 
-### Gateway: point a subdomain at Cloud Run
+The intended public frontend hostnames are **`vidigen.online`** and **`www.vidigen.online`**. Both currently need to be added as Cloudflare Worker custom domains; public DNS currently returns no records for either hostname. This is a Cloudflare account/domain configuration step, not a Vite/React build issue.
 
-```bash
-gcloud run domain-mappings create \
-  --service=vidigen-gateway \
-  --domain=api.vidigen.online \
-  --region="$REGION"
-```
+In Cloudflare Dashboard:
+1. Workers & Pages → **vidigen-ai** → Settings → **Domains & Routes**.
+2. Add custom domain **vidigen.online**.
+3. Add custom domain **www.vidigen.online**.
+4. Confirm the zone `vidigen.online` is active in the same Cloudflare account.
 
-This prints a DNS record (a `CNAME` to `ghs.googlehosted.com`, or `A`/`AAAA` records for
-an apex). Add exactly that record in the Cloudflare DNS dashboard for `api`.
+The current GitHub Actions Cloudflare token can deploy the Worker but does not have permission to edit Worker routes or DNS (the API returns 403). Once a token with the required Worker-route/DNS permissions is used, the deployment can manage these bindings automatically.
 
-- **Set it to "DNS only" (grey cloud) at first.** Cloud Run's domain mapping needs to see
-  your real DNS to issue and verify the TLS certificate; Cloudflare's proxy will interfere
-  with that handshake until the mapping is verified.
-- Once `gcloud run domain-mappings describe --domain=api.vidigen.online --region="$REGION"`
-  shows the certificate as ready, you can switch the record to "Proxied" (orange cloud) if
-  you want Cloudflare's WAF/caching in front of the API too — optional, not required.
+### Gateway/API edge
+
+**`api.vidigen.online` is already live through the Cloudflare Worker proxy.** It forwards to the verified Cloud Run origin:
+
+`https://vidigen-gateway-xvpegaghzq-uc.a.run.app`
+
+Do **not** create a Google Cloud Run custom-domain mapping for `api.vidigen.online` for the current architecture.
+
+The Cloud Run service remains the private implementation detail behind the API edge; GitHub Actions verifies the service URL, authenticated `/health`, `/api/providers`, and `/docs`.
 
 ---
 
