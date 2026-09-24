@@ -124,7 +124,7 @@ function App(){
  const [cameraMove,setCameraMove]=useState(CAMERA_MOVES[0]);
  const [prompt,setPrompt]=useState('Create a cinematic 30-second product advertisement for a premium sneaker, luxury studio, controlled camera movement and a strong final CTA.');
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
- const [gateway,setGateway]=useState(()=>localStorage.getItem('vidigen_gateway')||import.meta.env.VITE_VIDIGEN_GATEWAY_URL||'');
+ const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||localStorage.getItem('vidigen_gateway')||'');
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
  const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
  const [showPasswordReset,setShowPasswordReset]=useState(false);
