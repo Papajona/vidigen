@@ -91,6 +91,32 @@ SUPABASE_JWT_ISSUER=os.getenv('SUPABASE_JWT_ISSUER','').rstrip('/')
 SUPABASE_JWT_AUD=os.getenv('SUPABASE_JWT_AUD','authenticated')
 MAX_AUDIO_BYTES=int(os.getenv('VIDIGEN_MAX_AUDIO_BYTES','50000000'))
 
+SUPPORTED_CLOUD_PROVIDERS=('replicate','seedance','runway')
+
+def _configured_provider_names() -> list[str]:
+    configured={
+        'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
+        'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
+        'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
+    }
+    priority=[x.strip().lower() for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY','replicate,seedance,runway').split(',') if x.strip()]
+    ordered=[]
+    for name in priority + list(SUPPORTED_CLOUD_PROVIDERS):
+        if name in SUPPORTED_CLOUD_PROVIDERS and configured.get(name) and name not in ordered:
+            ordered.append(name)
+    return ordered
+
+def _provider_candidates(requested: str) -> list[str]:
+    configured=_configured_provider_names()
+    if requested == 'auto':
+        return configured
+    if requested in SUPPORTED_CLOUD_PROVIDERS:
+        if requested not in configured:
+            raise HTTPException(503,f'{requested.title()} is not configured on the gateway.')
+        return [requested]+[name for name in configured if name != requested]
+    return []
+
+
 SENTRY_DSN = os.getenv('SENTRY_DSN', '')
 if SENTRY_DSN:
     import sentry_sdk
@@ -1461,26 +1487,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         log.warning(f'Blocked prompt from user {(user or {}).get("sub","anon")}: {prompt_check.get("reason")}')
         raise HTTPException(422, f'This prompt was flagged and cannot be generated: {prompt_check.get("reason") or "policy violation"}')
     requested=(getattr(req,'model',None) or 'auto').lower() if hasattr(req,'model') else 'auto'
-
-    def configured_provider_names():
-        configured={
-            'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
-            'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
-            'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
-        }
-        priority=[x.strip().lower() for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY','replicate,seedance,runway').split(',') if x.strip()]
-        return [name for name in priority if configured.get(name) and name in PROVIDERS]
-
-    configured_names=configured_provider_names()
-    if requested == 'auto':
-        provider_candidates=configured_names
-    elif requested in ('replicate','seedance','runway'):
-        if requested not in configured_names:
-            raise HTTPException(503,f'{requested.title()} is not configured on the gateway.')
-        # A requested provider is the preferred first choice, not a single point of failure.
-        provider_candidates=[requested]+[name for name in configured_names if name != requested]
-    else:
-        provider_candidates=[]
+    provider_candidates=_provider_candidates(requested)
     user_id=(user or {}).get('sub') if user else None
     if req.idempotencyKey and user_id and persistence.enabled():
         # Return the existing job instead of billing/submitting again. Best-effort: a
@@ -1504,6 +1511,8 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         billing_receipt=await _bill_generation(user, req)
         request_payload=req.model_dump()
         request_payload['_billing']=billing_receipt
+        request_payload['_provider_candidates']=provider_candidates
+        request_payload['_provider_attempts']=[]
         request_payload['_provider_candidates']=list(provider_candidates)
         request_payload['_provider_attempts']=[]
         job_id=None
@@ -1596,6 +1605,10 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             external_id=result.job_id
             cache_id=job_id or external_id
             request_payload['_external_id']=external_id
+            request_payload['_provider_attempts']=list(request_payload.get('_provider_attempts') or [])
+            if provider_name not in request_payload['_provider_attempts']:
+                request_payload['_provider_attempts'].append(provider_name)
+            request_payload['_all_providers_failed']=False
             request_payload['_provider_attempts']=list(request_payload.get('_provider_attempts') or []) + [provider_name]
             status_url=((result.raw or {}).get('status_url') or
                         (result.raw or {}).get('statusUrl') or
