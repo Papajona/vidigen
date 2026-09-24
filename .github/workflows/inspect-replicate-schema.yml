@@ -1,0 +1,32 @@
+name: One-time Replicate schema inspection
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspect-replicate-schema.yml"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect production model input schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud secrets versions access latest --secret=replicate-api-token)"
+          echo "::add-mask::$TOKEN"
+          curl --silent --show-error --fail-with-body             "https://api.replicate.com/v1/models/bytedance/seedance-2.0"             -H "Authorization: Bearer $TOKEN"             > /tmp/model.json
+          jq '{
+            name: .name,
+            latest_version: .latest_version,
+            input_schema: (.latest_version.openapi_schema.components.schemas.Input.properties // {}),
+            required: (.latest_version.openapi_schema.components.schemas.Input.required // [])
+          }' /tmp/model.json
