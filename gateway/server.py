@@ -107,7 +107,7 @@ def _configured_provider_names(capability: str | None = None) -> list[str]:
             ordered.append(name)
     return ordered
 
-def _provider_candidates(requested: str, req: Generate) -> list[str]:
+def _provider_candidates(requested: str, req: Any) -> list[str]:
     capability = _operation_capability(req.mode)
     configured = _configured_provider_names(capability)
     if requested == 'auto':
