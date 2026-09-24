@@ -1,3 +1,5 @@
+# One-time production generation smoke test
+
 name: One-time live paid generation
 
 on:
