@@ -141,6 +141,18 @@ provider config live, more trustworthy than reading docs.
 
 ---
 
+## 2a. First admin bootstrap
+
+The connected production Supabase project currently has no users. After you create your first customer/admin account through the app and confirm the email, add that account's UUID to `public.admin_users` using the Supabase SQL editor:
+
+```sql
+insert into public.admin_users (uid, note)
+values ('YOUR_AUTH_USER_UUID', 'Primary Vidigen administrator')
+on conflict (uid) do nothing;
+```
+
+Then open the developer dashboard, enroll TOTP 2FA, and verify the first 6-digit code. Do not expose the service-role key or place it in the frontend.
+
 ## 3. Cloudflare — DNS and Worker frontend
 
 ### Frontend: Cloudflare Worker
