@@ -221,7 +221,11 @@ function App(){
    // Use the same-origin Worker probe for the status indicator. The Worker checks the
    // real Cloud Run /healthz endpoint, eliminating browser CORS/preflight as a source
    // of false "Offline" states.
-   const h=await fetch('/__gateway_health',{cache:'no-store'});
+   let h=await fetch(`/__gateway_health?probe=${Date.now()}`,{cache:'no-store'});
+   // If the custom-domain edge is stale, probe the same deployed Worker directly.
+   if(!h.ok){
+     try{h=await fetch(`https://vidigen-ai.affuljona.workers.dev/__gateway_health?probe=${Date.now()}`,{cache:'no-store'});}catch{}
+   }
    if(!alive)return;
    setOnline(h.ok);
    // Provider configuration is protected, so only request it once a real Supabase
