@@ -200,7 +200,7 @@ def build_router(auth_dependency, admin_dependency):
     async def plans(user=Depends(auth_dependency)):
         await ensure_default_plans()
         if persistence.enabled():
-            return {'currency':CURRENCY,'plans':await persistence.sb_request('GET','subscription_plans',params={'select':'*','order':'price_ghs.asc'})}
+            return {'currency':CURRENCY,'plans':await persistence.sb_request('GET','subscription_plans',params={'select':'*','active':'eq.true','order':'price_ghs.asc'})}
         return {'currency':CURRENCY,'plans':DEFAULT_PLANS}
 
     @router.get('/me')
@@ -215,7 +215,7 @@ def build_router(auth_dependency, admin_dependency):
         if not uid or not email: raise HTTPException(401,'A signed-in account with an email address is required.')
         if req.payment_method != 'paystack': raise HTTPException(400,'Google Pay is a separate integration and cannot be routed through the Paystack checkout endpoint.')
         await ensure_default_plans(); plan=await _get_plan(req.plan_slug)
-        if not plan: raise HTTPException(404,'Plan not found.')
+        if not plan or not plan.get('active', True): raise HTTPException(404,'Plan not found.')
         if float(plan.get('price_ghs') or 0) <= 0: raise HTTPException(400,'The Free plan does not require checkout.')
         if not PAYSTACK_SECRET: raise HTTPException(503,'Paystack is not configured yet.')
         if not plan.get('paystack_plan_code'):
