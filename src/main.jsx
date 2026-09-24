@@ -58,9 +58,11 @@ async function gatewayFetch(base,path,options={},token=''){
  if(r.status===401 && token && _onUnauthorizedHandler) _onUnauthorizedHandler();
  if(!r.ok){
    // A stale/unverified custom API hostname should not strand the live frontend while the
-   // canonical Cloud Run HTTPS endpoint is healthy. Only transport/server-side failures
-   // fall back; authentication and client errors remain authoritative on the primary host.
-   if(primary!==fallback && r.status>=500){
+   // canonical Cloud Run HTTPS endpoint is healthy. 404 is included because an unverified
+   // Google/Cloudflare custom-domain mapping can return a front-door 404 before the request
+   // reaches FastAPI. Authentication failures remain authoritative on the primary host.
+   const shouldFallback = primary!==fallback && (r.status===404 || r.status>=500);
+   if(shouldFallback){
      r=await fetch(`${fallback}${path}`,{...options,headers});
      base=fallback;
    }
