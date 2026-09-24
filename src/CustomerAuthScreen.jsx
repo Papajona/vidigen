@@ -92,6 +92,8 @@ export default function CustomerAuthScreen({onAuthenticated, onClose}) {
           </button>
         </form>
 
+        <button type="button" className="secondary" onClick={async()=>{setError('');setInfo('');if(!email){setError('Enter your email first.');return;}setBusy(true);try{const {error:err}=await supabase.auth.resetPasswordForEmail(email,{redirectTo: window.location.origin});if(err)throw err;setInfo('Password recovery email sent. Check your inbox and open the link on this site.');}catch(err){setError(err.message||'Could not send password recovery email.');}finally{setBusy(false)}}} style={{marginTop:10}}>Forgot password?</button>
+
         <p className="muted" style={{marginTop: 14, cursor: 'pointer'}}
            onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(''); setInfo(''); }}>
           {mode === 'signup' ? 'Already have an account? Sign in' : "New here? Create an account"}
