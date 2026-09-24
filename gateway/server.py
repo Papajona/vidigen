@@ -1408,11 +1408,7 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
         frame_path = f'{tmp}/frame.png'
         output_path = f'{tmp}/reframed.mp4'
 
-        async with httpx.AsyncClient(timeout=120) as c:
-            dl = await c.get(req.media_url)
-            if dl.status_code >= 400:
-                raise HTTPException(502, f'Could not fetch source media ({dl.status_code}).')
-            Path(source_path).write_bytes(dl.content)
+        await _download_render_source(req.media_url, Path(source_path))
 
         # Grab one representative frame ~15% into the clip (skips a possible black/fade-in
         # opening frame that a t=0 grab would often catch).
