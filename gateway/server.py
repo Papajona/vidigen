@@ -1766,6 +1766,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                         if not fallback_result.job_id:
                             raise ProviderError(f'{fallback_provider.title()} returned no job ID.')
                     except Exception as e:
+                        attempted.append(fallback_provider)
                         log.warning(
                             f'Provider {fallback_provider} failed during status-time failover for '
                             f'job {prompt_id}: {e}'
@@ -1815,6 +1816,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                         'providerAttempts':new_request['_provider_attempts'],
                     }
 
+                request_data['_provider_attempts']=attempted
                 error_message=str((result.raw or {}).get('error','Provider failed'))
                 billing_info=request_data.get('_billing') or {}
                 charged=int(billing_info.get('charged') or 0)
