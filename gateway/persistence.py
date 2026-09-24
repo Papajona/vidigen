@@ -62,6 +62,46 @@ async def add_feedback(user_id,job_id,rating,accepted,signals):
     rows=await sb_request('POST','brain_feedback',{'user_id':user_id,'generation_job_id':job_id,'rating':rating,'accepted':accepted,'signals':signals})
     return rows[0] if rows else None
 
+async def get_brain_profile(user_id: str) -> dict:
+    """Return a compact user-scoped Brain profile for cross-device prompt adaptation."""
+    if not enabled() or not user_id:
+        return {'preferred_tags': [], 'successful_prompts': [], 'feedback_count': 0, 'learned_outputs': 0}
+    feedback = await sb_request('GET','brain_feedback',params={
+        'user_id': f'eq.{user_id}', 'select':'rating,accepted,signals,created_at',
+        'order':'created_at.desc', 'limit':'200',
+    }) or []
+    samples = await sb_request('GET','brain_output_samples',params={
+        'user_id': f'eq.{user_id}', 'select':'rating,accepted,source_prompt,tags,created_at',
+        'order':'created_at.desc', 'limit':'200',
+    }) or []
+    tag_counts = {}
+    successful_prompts = []
+    for row in samples:
+        rating = int(row.get('rating') or 0)
+        accepted = bool(row.get('accepted'))
+        if rating >= 4 or accepted:
+            for tag in row.get('tags') or []:
+                if isinstance(tag, str) and tag:
+                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
+            prompt = str(row.get('source_prompt') or '').strip()
+            if prompt and prompt not in successful_prompts:
+                successful_prompts.append(prompt)
+        if len(successful_prompts) >= 10:
+            break
+    for row in feedback:
+        if int(row.get('rating') or 0) >= 4 or bool(row.get('accepted')):
+            signals = row.get('signals') or {}
+            for tag in signals.get('tags') or []:
+                if isinstance(tag, str) and tag:
+                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
+    preferred_tags = [x[0] for x in sorted(tag_counts.items(), key=lambda x:(-x[1], x[0]))[:8]]
+    return {
+        'preferred_tags': preferred_tags,
+        'successful_prompts': successful_prompts[:10],
+        'feedback_count': len(feedback),
+        'learned_outputs': len(samples),
+    }
+
 async def consume_daily_feature(user_id: str, feature: str, daily_limit: int) -> dict | None:
     if not enabled():
         return {'new_count': 0, 'limit': daily_limit, 'bypassed': True}
