@@ -69,7 +69,7 @@ jobs:
           echo "api.vidigen.online: OK"
 
           echo "Verifying same-origin gateway health through www..."
-          curl --fail --silent --show-error --retry 8 --retry-delay 3             https://www.vidigen.online/__gateway_health >/dev/null
+          curl --fail --silent --show-error --retry 8 --retry-delay 3             "https://www.vidigen.online/__gateway_health?probe=github" >/dev/null
           echo "www.vidigen.online gateway health: OK"
 
           for host in vidigen.online www.vidigen.online; do
