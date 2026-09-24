@@ -1692,7 +1692,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                        model=_replicate_model_for_payload(request_payload) if provider_name=='replicate' else provider_name,
                         status='processing',
                         request=request_payload
                     )
@@ -3329,7 +3329,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=os.getenv('REPLICATE_MODEL','') if provider_name=='replicate' else provider_name,
+                        model=_replicate_model_for_payload(request_payload) if provider_name=='replicate' else provider_name,
                         status='processing',
                         request=request_payload
                     )
