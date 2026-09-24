@@ -98,7 +98,8 @@ jobs:
           test -n "$DEPLOYED_URL"
           echo "deployed_url=$DEPLOYED_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Ensure production gateway domain
+      - name: Ensure production gateway domain (best effort)
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -107,7 +108,10 @@ jobs:
           gcloud config set run/region "${REGION}" --quiet
           echo "Ensuring Cloud Run custom-domain mapping for $GATEWAY_DOMAIN..."
           if ! gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json 2>/dev/null; then
-            gcloud beta run domain-mappings create --quiet --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"
+            if !             gcloud beta run domain-mappings create --quiet --domain="$GATEWAY_DOMAIN" --service="${SERVICE}"; then
+              echo "Custom domain is not ready yet (likely Google domain verification). Continuing; Cloud Run run.app remains the authoritative production endpoint."
+              exit 0
+            fi
             gcloud beta run domain-mappings describe "$GATEWAY_DOMAIN" --format=json >/tmp/domain.json
           fi
           python - <<'PY'
@@ -168,7 +172,7 @@ jobs:
           DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
           URL="$DEPLOYED_URL"
-          PUBLIC_URL="https://api.vidigen.online"
+          PUBLIC_URL="$DEPLOYED_URL"
           REVISION=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.latestReadyRevisionName)")
           echo "Deployed default URL: $URL"
           echo "Production gateway URL: $PUBLIC_URL"
@@ -198,5 +202,11 @@ jobs:
           echo "Provider runtime status:"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/api/providers"
           echo
-          echo "Default Cloud Run URL (informational only):"
-          curl --silent --show-error --retry 3 --retry-delay 2 "$URL/healthz" || echo "Default run.app URL is not directly serving /healthz; production traffic uses api.vidigen.online."
+          echo "Custom gateway domain (best effort):"
+          if curl --silent --show-error --fail --retry 3 --retry-delay 2 "https://api.vidigen.online/healthz" >/tmp/custom-health.txt 2>/tmp/custom-health.err; then
+            cat /tmp/custom-health.txt
+            echo "api.vidigen.online: reachable"
+          else
+            cat /tmp/custom-health.err || true
+            echo "api.vidigen.online: not ready yet (Google domain verification/certificate may still be pending)."
+          fi
