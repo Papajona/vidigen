@@ -15,9 +15,12 @@ create table if not exists public.assets (
 create table if not exists public.generation_jobs (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
   project_id uuid references public.projects(id) on delete cascade, provider text not null, model text not null,
-  request jsonb not null default '{}'::jsonb, status text not null default 'queued' check (status in ('queued','processing','completed','failed','cancelled')),
+  request jsonb not null default '{}'::jsonb, idempotency_key text,
+  status text not null default 'queued' check (status in ('queued','processing','completed','failed','cancelled')),
   output_asset_id uuid references public.assets(id), error text, created_at timestamptz not null default now(), completed_at timestamptz
 );
+create unique index if not exists generation_jobs_user_idempotency_key_idx
+  on public.generation_jobs(user_id, idempotency_key) where idempotency_key is not null;
 create table if not exists public.brain_feedback (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
   generation_job_id uuid references public.generation_jobs(id) on delete set null, rating smallint check (rating between 0 and 5),
