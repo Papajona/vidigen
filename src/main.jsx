@@ -57,6 +57,14 @@ async function gatewayFetch(base,path,options={},token=''){
  // a session has already expired, not just the first one to notice.
  if(r.status===401 && token && _onUnauthorizedHandler) _onUnauthorizedHandler();
  if(!r.ok){
+   // If the configured API edge is stale/unreachable at the HTTP layer, retry the
+   // canonical Cloud Run gateway before reporting the app offline.
+   if(primary!==fallback && r.status>=500){
+     try{
+       const retry=await fetch(`${fallback}${path}`,{...options,headers});
+       if(retry.ok){ r=retry; base=fallback; }
+     }catch{}
+   }
    // A stale/unverified custom API hostname should not strand the live frontend while the
    // canonical Cloud Run HTTPS endpoint is healthy. 404 is included because an unverified
    // Google/Cloudflare custom-domain mapping can return a front-door 404 before the request
@@ -146,7 +154,7 @@ function App(){
  const [cameraMove,setCameraMove]=useState(CAMERA_MOVES[0]);
  const [prompt,setPrompt]=useState('Create a cinematic 30-second product advertisement for a premium sneaker, luxury studio, controlled camera movement and a strong final CTA.');
  const [ratio,setRatio]=useState('16:9'),[duration,setDuration]=useState('5s'),[model,setModel]=useState('auto');
- const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||localStorage.getItem('vidigen_gateway')||'');
+ const [gateway,setGateway]=useState(()=>import.meta.env.VITE_VIDIGEN_GATEWAY_URL||localStorage.getItem('vidigen_gateway')||DEFAULT_GATEWAY_FALLBACK);
  const [token,setToken]=useState(()=>sessionStorage.getItem('vidigen_gateway_token')||'');
  const [showAuth,setShowAuth]=useState(()=>!sessionStorage.getItem('vidigen_gateway_token'));
  const [showPasswordReset,setShowPasswordReset]=useState(false);
