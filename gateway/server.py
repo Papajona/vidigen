@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, HTMLResponse
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
-from gateway.providers import PROVIDERS, ProviderError, configured_providers, provider_inventory, _operation_capability
+from gateway.providers import PROVIDERS, ProviderError, configured_providers, provider_inventory, _operation_capability, _provider_model
 from gateway import persistence
 
 COMFY_URL=os.getenv('COMFY_URL','http://127.0.0.1:8188').rstrip('/')
@@ -116,17 +116,24 @@ def _provider_candidates(requested: str, req: Any) -> list[str]:
         return []
     if requested in PROVIDERS:
         provider = PROVIDERS[requested]
-        if not provider.configured():
+        configured=getattr(provider, 'configured', None)
+        if callable(configured) and not configured():
             raise HTTPException(503, f'{requested.title()} is not configured on the gateway.')
-        if not provider.supports(capability):
+        supports=getattr(provider, 'supports', None)
+        if callable(supports) and not supports(capability):
             raise HTTPException(400, f'{requested.title()} does not advertise support for {capability}.')
         return [requested] + [name for name in configured if name != requested]
     raise HTTPException(400, f'Unknown provider: {requested}. Add it through the provider manifest or choose Auto.')
 
 def _prepare_provider_request(provider_name: str, payload: dict) -> dict[str, Any]:
     provider = PROVIDERS[provider_name]
+    prepare=getattr(provider, 'prepare', None)
     try:
-        return provider.prepare(payload)
+        if callable(prepare):
+            return prepare(payload)
+        model_for=getattr(provider, 'model_for', None)
+        model=model_for(payload) if callable(model_for) else provider_name
+        return {'input': payload, 'model': model}
     except ProviderError:
         raise
     except Exception as exc:
@@ -1595,7 +1602,7 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
                     await persistence.update_job(
                         job_id,
                         provider=provider_name,
-                        model=PROVIDERS[provider_name].model_for(request_payload),
+                        model=_provider_model(PROVIDERS[provider_name], request_payload),
                         status='queued',
                         error=None,
                     )
@@ -1820,7 +1827,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                             await persistence.update_job(
                                 prompt_id,
                                 provider=fallback_provider,
-                                model=PROVIDERS[fallback_provider].model_for(new_request),
+                                model=_provider_model(PROVIDERS[fallback_provider], new_request),
                                 status='processing',
                                 request=new_request,
                                 error=None,
