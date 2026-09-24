@@ -15,7 +15,7 @@ TEST_PAYMENT_PRICES_GHS = (10.0, 20.0, 50.0)
 BILLING_ENFORCE = os.getenv('VIDIGEN_BILLING_ENFORCE', 'true').lower() in {'1','true','yes','on'}
 CURRENCY = os.getenv('VIDIGEN_BILLING_CURRENCY', 'GHS')
 DEFAULT_PLANS = [
-    {'slug':'free','name':'Free','price_ghs':0.0,'monthly_credits':50,'storage_gb':0.5,'watermark':True,'commercial_use':False,'priority':False,'interval':'monthly'},
+    {'slug':'free','name':'Free','price_ghs':0.0,'monthly_credits':0,'storage_gb':0.5,'watermark':True,'commercial_use':False,'priority':False,'interval':'monthly'},
     {'slug':'creator','name':'Creator','price_ghs':149.0,'monthly_credits':600,'storage_gb':25,'watermark':False,'commercial_use':True,'priority':False,'interval':'monthly'},
     {'slug':'pro','name':'Pro','price_ghs':399.0,'monthly_credits':1800,'storage_gb':100,'watermark':False,'commercial_use':True,'priority':True,'interval':'monthly'},
     {'slug':'studio','name':'Studio','price_ghs':999.0,'monthly_credits':5000,'storage_gb':500,'watermark':False,'commercial_use':True,'priority':True,'interval':'monthly'},
@@ -32,6 +32,11 @@ class CheckoutRequest(BaseModel):
     plan_slug: str = Field(min_length=2,max_length=32)
     callback_url: str | None = Field(default=None,max_length=2000)
     payment_method: str = Field(default='paystack', pattern=r'^paystack$')
+
+class CreditPackRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    credits: int = Field(default=150, ge=150, le=150)
+    callback_url: str | None = Field(default=None, max_length=2000)
 
 class AdjustPlanRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -108,6 +113,35 @@ async def _sync_paystack_plan(plan: dict) -> dict:
     if persistence.enabled() and created.get('plan_code'):
         await persistence.sb_request('PATCH','subscription_plans',{'paystack_plan_code':created['plan_code']},params={'slug':f"eq.{plan['slug']}"})
     return created
+
+FREE_DAILY_FEATURE_LIMIT = 5
+
+async def get_user_plan_slug(user_id: str) -> str:
+    if not persistence.enabled():
+        return 'free'
+    rows=await persistence.sb_request('GET','subscriptions',params={
+        'user_id':f'eq.{user_id}','status':'in.(active,past_due)',
+        'select':'plan_slug','order':'created_at.desc','limit':'1'
+    })
+    return rows[0].get('plan_slug') if rows and rows[0].get('plan_slug') else 'free'
+
+async def enforce_free_daily_feature(user_id: str, feature: str) -> dict:
+    slug=await get_user_plan_slug(user_id)
+    if slug != 'free':
+        return {'allowed':True,'plan':slug,'count':None,'limit':None}
+    result=await persistence.consume_daily_feature(user_id,feature,FREE_DAILY_FEATURE_LIMIT)
+    if not result:
+        raise HTTPException(503,'Daily feature usage could not be recorded.')
+    count=int(result.get('new_count') or 0)
+    if count > FREE_DAILY_FEATURE_LIMIT:
+        raise HTTPException(429,f'Free plan limit reached: {FREE_DAILY_FEATURE_LIMIT} uses per day for {feature.replace("_"," ")}.')
+    return {'allowed':True,'plan':'free','count':count,'limit':FREE_DAILY_FEATURE_LIMIT}
+
+async def refund_free_daily_feature(user_id: str, feature: str) -> None:
+    try:
+        await persistence.release_daily_feature(user_id,feature)
+    except Exception:
+        pass
 
 async def user_billing_summary(user_id: str) -> dict:
     if not persistence.enabled():
@@ -196,6 +230,20 @@ def build_router(auth_dependency, admin_dependency):
             await persistence.sb_request('POST','payments',{'user_id':uid,'plan_id':plan.get('id'),'provider':'paystack','reference':reference,'amount':plan['price_ghs'],'currency':CURRENCY,'status':'pending','metadata':metadata})
         return {'authorization_url':data.get('authorization_url'),'access_code':data.get('access_code'),'reference':reference,'plan':plan['slug']}
 
+    @router.post('/checkout/credits')
+    async def checkout_credits(req: CreditPackRequest, request: Request, user=Depends(auth_dependency)):
+        uid=(user or {}).get('sub'); email=(user or {}).get('email')
+        if not uid or not email: raise HTTPException(401,'A signed-in account with an email address is required.')
+        price=30.0
+        if not PAYSTACK_SECRET: raise HTTPException(503,'Paystack is not configured yet.')
+        callback=req.callback_url or os.getenv('VIDIGEN_BILLING_CALLBACK_URL') or str(request.base_url).rstrip('/')+'/billing/callback'
+        metadata={'type':'vidigen_credit_pack','user_id':uid,'credits':150,'amount_ghs':price,'payment_method':'paystack'}
+        data=await _paystack('POST','/transaction/initialize',payload={'email':email,'amount':_amount_subunit(price),'currency':CURRENCY,'callback_url':callback,'metadata':metadata})
+        reference=data.get('reference')
+        if persistence.enabled():
+            await persistence.sb_request('POST','payments',{'user_id':uid,'provider':'paystack','reference':reference,'amount_ghs':price,'amount':price,'currency':CURRENCY,'status':'pending','payment_method':'paystack','metadata':metadata})
+        return {'authorization_url':data.get('authorization_url'),'access_code':data.get('access_code'),'reference':reference,'credits':150,'price_ghs':price}
+
     @router.get('/paystack/verify/{reference}')
     async def verify(reference: str, user=Depends(auth_dependency)):
         uid=(user or {}).get('sub');
@@ -221,7 +269,15 @@ def build_router(auth_dependency, admin_dependency):
             await persistence.sb_request('POST','payment_events',{'provider':'paystack','provider_event_id':event_id,'event':event,'payload':data})
         if event == 'charge.success':
             metadata=data.get('metadata') or {}
-            uid=metadata.get('user_id'); plan_slug=metadata.get('plan_slug')
+            uid=metadata.get('user_id')
+            if metadata.get('type') == 'vidigen_credit_pack':
+                if uid and int(metadata.get('credits') or 0) == 150 and persistence.enabled():
+                    await persistence.sb_request('POST','rpc/grant_subscription_credits_atomic',{'p_user_id':uid,'p_amount':150,'p_monthly_allowance':0})
+                    ref=data.get('reference')
+                    if ref:
+                        await persistence.sb_request('PATCH','payments',{'status':'success','verified_at':datetime.now(timezone.utc).isoformat()},params={'reference':f'eq.{ref}'})
+                return {'ok':True,'credit_pack':150}
+            plan_slug=metadata.get('plan_slug')
             if not uid and data.get('customer',{}).get('customer_code'):
                 rows=await persistence.sb_request('GET','subscriptions',params={'paystack_customer_code':f"eq.{data['customer']['customer_code']}",'status':'eq.active','select':'user_id,plan_id,plan_slug','limit':'1'})
                 if rows: uid=rows[0]['user_id']; plan_slug=rows[0].get('plan_slug')
