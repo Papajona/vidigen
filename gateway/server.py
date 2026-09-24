@@ -133,6 +133,9 @@ def _prepare_provider_request(provider_name: str, payload: dict) -> dict[str, An
             return prepare(payload)
         model_for=getattr(provider, 'model_for', None)
         model=model_for(payload) if callable(model_for) else provider_name
+        # Backwards-compatible envelope for custom adapters that only implement submit().
+        # This keeps older lightweight adapters/test doubles working while the formal
+        # registry adapters can expose richer per-operation preparation.
         return {'input': payload, 'model': model}
     except ProviderError:
         raise
