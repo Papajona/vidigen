@@ -1,0 +1,33 @@
+name: Diagnose Vidigen Cloudflare DNS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/diagnose-cloudflare-dns.yml"
+  workflow_dispatch: {}
+
+jobs:
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Cloudflare zone and Vidigen records
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CF_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN missing"; exit 1; }
+          ZONES=$(curl -fsS -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones?name=vidigen.online")
+          echo "$ZONES" | python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps([{"id":z.get("id"),"name":z.get("name"),"status":z.get("status"),"name_servers":z.get("name_servers")} for z in d.get("result",[])],indent=2))'
+          ZONE_ID=$(echo "$ZONES" | python -c 'import json,sys; d=json.load(sys.stdin); r=d.get("result",[]); print(r[0]["id"] if r else "")')
+          test -n "$ZONE_ID" || { echo "::error::Cloudflare zone vidigen.online not found"; exit 1; }
+          for NAME in vidigen.online www.vidigen.online api.vidigen.online; do
+            echo "=== $NAME ==="
+            curl -fsS -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=CNAME&name=$NAME&per_page=100"               | python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps([{"type":r.get("type"),"name":r.get("name"),"content":r.get("content"),"proxied":r.get("proxied")} for r in d.get("result",[])],indent=2))'
+          done
+          echo "=== Public DNS resolution from GitHub runner ==="
+          for HOST in vidigen.online www.vidigen.online api.vidigen.online; do
+            echo "$HOST:"
+            (getent ahosts "$HOST" || true)
+          done
