@@ -91,24 +91,18 @@ jobs:
             --timeout=900 \
             --min-instances=1 \
             --max-instances=1 \
-            --set-env-vars="^@^VIDIGEN_ALLOWED_ORIGINS=${{ secrets.VIDIGEN_ALLOWED_ORIGINS }},https://vidigen.online,https://www.vidigen.online@VIDIGEN_RATE_LIMIT=30@VIDIGEN_ADMIN_2FA_REQUIRED=true@VIDIGEN_PAYMENT_TEST_MODE=false@GOOGLE_PAY_TEST_MODE=false@VIDIGEN_PROVIDER_PRIORITY=${{ secrets.VIDIGEN_PROVIDER_PRIORITY }}@REPLICATE_MODEL=${{ secrets.REPLICATE_MODEL }}@SEEDANCE_API_URL=${{ secrets.SEEDANCE_API_URL }}@SEEDANCE_API_TOKEN=${{ secrets.SEEDANCE_API_TOKEN }}@RUNWAY_API_URL=${{ secrets.RUNWAY_API_URL }}@RUNWAY_API_TOKEN=${{ secrets.RUNWAY_API_TOKEN }}@SEEDANCE_STATUS_URL_TEMPLATE=${{ secrets.SEEDANCE_STATUS_URL_TEMPLATE }}@RUNWAY_STATUS_URL_TEMPLATE=${{ secrets.RUNWAY_STATUS_URL_TEMPLATE }}@VIDIGEN_AGENT_JOB_TIMEOUT=900@VIDIGEN_MAX_RENDER_CLIPS=50@VIDIGEN_MAX_RENDER_BYTES=500000000@VIDIGEN_RENDER_TIMEOUT=900@VIDIGEN_RENDER_ALLOWED_HOSTS=${{ secrets.VIDIGEN_RENDER_ALLOWED_HOSTS }}@SUPABASE_URL=${{ secrets.SUPABASE_URL }}@SUPABASE_JWT_ISSUER=${{ secrets.SUPABASE_URL }}@R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}@R2_BUCKET=${{ secrets.R2_BUCKET }}@R2_PUBLIC_BASE_URL=${{ secrets.R2_PUBLIC_BASE_URL }}@VIDIGEN_BILLING_CURRENCY=GHS@GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}@GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}@VIDIGEN_BILLING_ENFORCE=true" \
+            --set-env-vars="^@^VIDIGEN_ALLOWED_ORIGINS=${{ secrets.VIDIGEN_ALLOWED_ORIGINS }},https://vidigen.online,https://www.vidigen.online@VIDIGEN_RATE_LIMIT=30@VIDIGEN_ADMIN_2FA_REQUIRED=true@VIDIGEN_PAYMENT_TEST_MODE=false@GOOGLE_PAY_TEST_MODE=false@VIDIGEN_PROVIDER_PRIORITY=${{ secrets.VIDIGEN_PROVIDER_PRIORITY || 'replicate,seedance,runway' }}@REPLICATE_MODEL=${{ secrets.REPLICATE_MODEL || 'bytedance/seedance-2.0' }}@SEEDANCE_API_URL=${{ secrets.SEEDANCE_API_URL }}@SEEDANCE_API_TOKEN=${{ secrets.SEEDANCE_API_TOKEN }}@RUNWAY_API_URL=${{ secrets.RUNWAY_API_URL }}@RUNWAY_API_TOKEN=${{ secrets.RUNWAY_API_TOKEN }}@SEEDANCE_STATUS_URL_TEMPLATE=${{ secrets.SEEDANCE_STATUS_URL_TEMPLATE }}@RUNWAY_STATUS_URL_TEMPLATE=${{ secrets.RUNWAY_STATUS_URL_TEMPLATE }}@VIDIGEN_AGENT_JOB_TIMEOUT=900@VIDIGEN_MAX_RENDER_CLIPS=50@VIDIGEN_MAX_RENDER_BYTES=500000000@VIDIGEN_RENDER_TIMEOUT=900@VIDIGEN_RENDER_ALLOWED_HOSTS=${{ secrets.VIDIGEN_RENDER_ALLOWED_HOSTS }}@SUPABASE_URL=${{ secrets.SUPABASE_URL }}@SUPABASE_JWT_ISSUER=${{ secrets.SUPABASE_URL }}@R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}@R2_BUCKET=${{ secrets.R2_BUCKET }}@R2_PUBLIC_BASE_URL=${{ secrets.R2_PUBLIC_BASE_URL }}@VIDIGEN_BILLING_CURRENCY=GHS@GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}@GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}@VIDIGEN_BILLING_ENFORCE=true" \
             --set-secrets="VIDIGEN_GATEWAY_TOKEN=vidigen-gateway-token:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,REPLICATE_API_TOKEN=replicate-api-token:latest,PAYSTACK_SECRET_KEY=paystack-secret-key:latest,R2_ACCESS_KEY_ID=r2-access-key-id:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,GROQ_API_KEY=groq-api-key:latest"
 
       - name: Verify deployed gateway
         run: |
           URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.url)")
           REVISION=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.latestReadyRevisionName)")
-          PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format="value(projectNumber)")
-          LEGACY_URL="https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
           echo "Service URL: $URL"
           echo "Ready revision: $REVISION"
-          echo "Legacy-style URL: $LEGACY_URL"
           gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(status.url,status.traffic,status.latestReadyRevisionName)"
           echo "Canonical health:"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 "$URL/healthz"
-          echo
-          echo "Legacy-style health:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$LEGACY_URL/healthz"
           echo
           echo "Custom gateway domain health (non-blocking):"
           curl --silent --show-error --retry 3 --retry-delay 2 "https://api.vidigen.online/healthz" || echo "api.vidigen.online is not serving yet."
