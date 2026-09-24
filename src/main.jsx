@@ -49,8 +49,8 @@ async function gatewayFetch(base,path,options={},token=''){
  return r;
 }
 async function waitJob(base,token,id,onProgress){
- for(let i=0;i<180;i++){
-  await new Promise(x=>setTimeout(x,1200));
+ for(let i=0;i<450;i++){
+  await new Promise(x=>setTimeout(x,2000));
   const st=await (await gatewayFetch(base,`/api/status/${encodeURIComponent(id)}`,{},token)).json();
   onProgress?.(st);
   if(st.videoUrl||st.outputUrl)return {url:st.videoUrl||st.outputUrl,jobId:id};
