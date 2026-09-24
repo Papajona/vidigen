@@ -218,9 +218,10 @@ function App(){
  useEffect(()=>{if(activeClip)setEditor({...DEFAULT_CLIP,...activeClip});},[activeId]); useEffect(()=>{const onKeyDown=e=>{const tag=e.target?.tagName?.toLowerCase();const editing=tag==='input'||tag==='textarea'||tag==='select';const mod=e.ctrlKey||e.metaKey;if(mod&&e.key==='Enter'){e.preventDefault();if(!generating)generate();return}if(mod&&!editing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if(mod&&!editing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(e.key==='/'&&!editing){e.preventDefault();document.querySelector('.prompt')?.focus();}};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[generating,undoStack.length,redoStack.length]);
 
  useEffect(()=>{let alive=true;(async()=>{try{
-   // /health is intentionally authenticated; use the public /healthz liveness probe to
-   // determine whether the production gateway is reachable before a user signs in.
-   const h=await gatewayFetch(gateway,'/healthz');
+   // Use the same-origin Worker probe for the status indicator. The Worker checks the
+   // real Cloud Run /healthz endpoint, eliminating browser CORS/preflight as a source
+   // of false "Offline" states.
+   const h=await fetch('/__gateway_health',{cache:'no-store'});
    if(!alive)return;
    setOnline(h.ok);
    // Provider configuration is protected, so only request it once a real Supabase
