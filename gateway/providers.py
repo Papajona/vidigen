@@ -219,10 +219,15 @@ class ReplicateProvider(BaseGenerationProvider):
                 "generate_audio": bool(payload.get("generate_audio", True)),
             }
             source = payload.get("sourceUrl")
+            source_type = payload.get("sourceType")
             if source:
-                if "image" in mode_text:
+                if _operation_capability(mode_text) == "image-to-video":
+                    if source_type and source_type != "image":
+                        raise ProviderError("Image → Video requires an image source.")
                     provider_input["image"] = source
-                elif "video" in mode_text:
+                elif _operation_capability(mode_text) == "video-to-video":
+                    if source_type and source_type != "video":
+                        raise ProviderError("Video → Video requires a video source.")
                     provider_input["reference_videos"] = [source]
         return {"input": provider_input, "model": self.model_for(payload)}
 
