@@ -106,7 +106,7 @@ def create_agent_router(auth_dependency):
             prompt_id = gen.get("promptId")
             if not prompt_id:
                 return ToolResult(False, {}, "No generation prompt ID returned")
-            deadline = time.time() + 90
+            deadline = time.time() + int(os.getenv('VIDIGEN_AGENT_JOB_TIMEOUT','900'))
             last = None
             while time.time() < deadline:
                 last = await status(str(prompt_id), None, user)
