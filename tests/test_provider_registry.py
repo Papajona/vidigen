@@ -21,7 +21,7 @@ class ProviderRegistryTests(unittest.TestCase):
             {
                 "prompt": "{{prompt}}",
                 "seconds": "{{duration_seconds}}",
-                "nested": {"source": "{{source_url}"},
+                "nested": {"source": "{{source_url}}"},
                 "enabled": "{{generate_audio}}",
             },
             {
