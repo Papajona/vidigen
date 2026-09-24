@@ -47,3 +47,12 @@ def test_gemini_route_fails_closed_when_not_configured(monkeypatch):
     monkeypatch.delenv('GEMINI_API_KEY', raising=False)
     r = asyncio.run(call('POST', '/api/gemini/analyze', {'prompt': 'cinematic product ad'}))
     assert r.status_code == 503
+
+def test_healthz_is_public_liveness_probe():
+    transport = httpx.ASGITransport(app=app)
+    async def check():
+        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+            return await client.get('/healthz')
+    r = asyncio.run(check())
+    assert r.status_code == 200
+    assert r.json() == {'ok': True}
