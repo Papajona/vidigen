@@ -1458,9 +1458,20 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         log.warning(f'Blocked prompt from user {(user or {}).get("sub","anon")}: {prompt_check.get("reason")}')
         raise HTTPException(422, f'This prompt was flagged and cannot be generated: {prompt_check.get("reason") or "policy violation"}')
     requested=(getattr(req,'model',None) or 'auto').lower() if hasattr(req,'model') else 'auto'
-    provider_name='replicate' if requested in ('auto','replicate') and 'replicate' in PROVIDERS and os.getenv('REPLICATE_API_TOKEN') and os.getenv('REPLICATE_MODEL') else 'local'
-    if requested in ('seedance','runway'):
+    configured={
+        'replicate': bool(os.getenv('REPLICATE_API_TOKEN')) and bool(os.getenv('REPLICATE_MODEL')),
+        'seedance': bool(os.getenv('SEEDANCE_API_URL')) and bool(os.getenv('SEEDANCE_API_TOKEN')),
+        'runway': bool(os.getenv('RUNWAY_API_URL')) and bool(os.getenv('RUNWAY_API_TOKEN')),
+    }
+    if requested == 'auto':
+        priority=[x.strip().lower() for x in os.getenv('VIDIGEN_PROVIDER_PRIORITY','replicate,seedance,runway').split(',') if x.strip()]
+        provider_name=next((name for name in priority if configured.get(name) and name in PROVIDERS), 'local')
+    elif requested in ('replicate','seedance','runway'):
+        if not configured.get(requested):
+            raise HTTPException(503,f'{requested.title()} is not configured on the gateway.')
         provider_name=requested
+    else:
+        provider_name='local'
     user_id=(user or {}).get('sub') if user else None
     if req.idempotencyKey and user_id and persistence.enabled():
         # Return the existing job instead of billing/submitting again. Best-effort: a
