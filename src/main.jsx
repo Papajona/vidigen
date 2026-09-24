@@ -293,7 +293,8 @@ function App(){
      setStatus('Fetching clip data…')
      const blob=await fetch(activeClip.src).then(r=>r.blob())
      setStatus('Uploading to Cloudflare R2…')
-     const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:`bg-remove/${activeClip.id}-${Date.now()}.mp4`,content_type:blob.type||'video/mp4'})},token)
+     const bgExt=blob.type.startsWith('image/')?(blob.type.includes('png')?'.png':'.jpg'):'.mp4'
+     const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:`bg-remove/${activeClip.id}-${Date.now()}${bgExt}`,content_type:blob.type||'video/mp4'})},token)
      if(!presignRes.ok){const err=await presignRes.json().catch(()=>({}));throw new Error(err.detail||'R2 is not configured on the gateway yet.')}
      const {upload_url,cdn_url}=await presignRes.json()
      if(!cdn_url){throw new Error('R2 upload succeeded but no public CDN URL is configured (set R2_PUBLIC_BASE_URL on the gateway).')}
