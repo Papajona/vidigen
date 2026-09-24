@@ -228,6 +228,14 @@ class Generate(BaseModel):
  idempotencyKey:str|None=Field(default=None,min_length=1,max_length=128,pattern=r'^[A-Za-z0-9_-]{1,128}$')
  tags:list[str]=Field(default_factory=list,max_length=20)
 
+class Memory(BaseModel):
+ model_config=ConfigDict(extra='forbid')
+ prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
+ mode:str=Field(default='Text → Video',max_length=64)
+ rating:int=Field(default=0,ge=0,le=5)
+ tags:list[str]=Field(default_factory=list,max_length=20)
+ success:bool=True
+
 class Analyze(BaseModel):
  model_config=ConfigDict(extra='forbid')
  prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
