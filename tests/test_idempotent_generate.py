@@ -22,7 +22,7 @@ def test_get_job_by_idempotency_key_queries_scoped_to_user():
     assert row['id'] == 'job-1'
     called_params = mock.call_args.kwargs['params']
     assert called_params['user_id'] == 'eq.user-1'
-    assert called_params['request->>idempotencyKey'] == 'eq.abc123'
+    assert called_params['idempotency_key'] == 'eq.abc123'
 
 
 def test_get_job_by_idempotency_key_returns_none_for_empty_key():
@@ -51,3 +51,11 @@ def test_generate_replays_existing_job_without_rebilling():
     body = r.json()
     assert body['promptId'] == 'job-existing'
     assert body.get('idempotentReplay') is True
+
+def test_idempotency_column_contract_is_used():
+    mock = AsyncMock(return_value=[{'id': 'job-2', 'status': 'queued', 'provider': 'replicate', 'request': {}}])
+    with patch.object(persistence, 'sb_request', new=mock):
+        job = asyncio.run(persistence.create_job('user-2', None, 'replicate', 'model-x', {'prompt':'x'}, 'key-2'))
+    assert job == 'job-2'
+    payload = mock.call_args.args[2]
+    assert payload['idempotency_key'] == 'key-2'
