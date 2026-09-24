@@ -17,11 +17,11 @@ export function geminiConfigured() {
 }
 
 export async function analyzeWithGemini(prompt, gateway, token) {
-  const data = await gatewayGemini(gateway, token, '/api/gemini/analyze', {prompt, model: DEFAULT_MODEL});
+  const data = await gatewayGemini(gateway, token, '/api/gemini/analyze', {prompt});
   return data.analysis;
 }
 
 export async function improvePromptWithGemini(prompt, mode, gateway, token) {
-  const data = await gatewayGemini(gateway, token, '/api/gemini/improve', {prompt, mode, model: DEFAULT_MODEL});
+  const data = await gatewayGemini(gateway, token, '/api/gemini/improve', {prompt, mode});
   return data.prompt;
 }
