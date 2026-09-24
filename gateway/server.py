@@ -254,7 +254,10 @@ class Generate(BaseModel):
  duration:str=Field(default='5s',pattern=r'^[1-9][0-9]?s$')
  scene:dict[str,Any]=Field(default_factory=dict)
  sourceUrl:str|None=Field(default=None,max_length=2048)
- sourceType:str|None=Field(default=None,pattern=r'^(image|video)
+ sourceType:str|None=Field(default=None,pattern=r'^(image|video)$')
+ # Optional client-supplied key so a retried request (double-click, flaky network, client
+ # retry logic) does not create a second billed job.
+ idempotencyKey:str|None=Field(default=None,min_length=1,max_length=128,pattern=r'^[A-Za-z0-9_-]{1,128}$')
  tags:list[str]=Field(default_factory=list,max_length=20)
 
 class Memory(BaseModel):
