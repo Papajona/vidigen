@@ -177,7 +177,9 @@ jobs:
           echo "Deployed default URL: $URL"
           echo "Production gateway URL: $PUBLIC_URL"
           echo "Ready revision: $REVISION"
-          gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(status.url,status.traffic,status.latestReadyRevisionName)"
+          gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(metadata.name,metadata.annotations,status.url,status.traffic,status.latestReadyRevisionName,spec.template.metadata.annotations)"
+          echo "Cloud Run invoker IAM:"
+          gcloud run services get-iam-policy "${SERVICE}" --region="${REGION}" --format=json
           echo "Container-local health:"
           docker pull "${IMAGE}:${{ github.sha }}"
           docker run -d --rm --name vidigen-gateway-smoke -e PORT=8080 -p 18080:8080 "${IMAGE}:${{ github.sha }}"
@@ -188,8 +190,20 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:18080/healthz
           docker rm -f vidigen-gateway-smoke >/dev/null 2>&1 || true
           echo
-          echo "Production gateway health:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/healthz"
+          echo "Production gateway health headers:"
+          curl --silent --show-error --retry 2 --retry-delay 1 -i "$PUBLIC_URL/healthz" || true
+          echo "Production gateway root headers:"
+          curl --silent --show-error --retry 2 --retry-delay 1 -i "$PUBLIC_URL/" || true
+          echo "Cloud Run authenticated proxy health:"
+          (gcloud run services proxy "${SERVICE}" --region="${REGION}" --port=18081 >/tmp/cloudrun-proxy.log 2>&1 & echo $! >/tmp/cloudrun-proxy.pid)
+          for i in $(seq 1 15); do
+            if curl --silent --fail http://127.0.0.1:18081/healthz >/tmp/proxy-health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/proxy-health.json
+          kill "$(cat /tmp/cloudrun-proxy.pid)" >/dev/null 2>&1 || true
+          echo "Public /healthz must return 200 from Cloud Run."
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 "$PUBLIC_URL/healthz"
           echo
           echo "Production FastAPI route:"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/docs" >/dev/null
