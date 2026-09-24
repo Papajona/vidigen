@@ -172,6 +172,7 @@ function App(){
  const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[settingsTab,setSettingsTab]=useState('general');
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
  const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
+ const [generationSource,setGenerationSource]=useState(null);
  const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
  const [captions,setCaptions]=useState(()=>read('vidigen_captions',[])),[captioning,setCaptioning]=useState(false),[captionStyle,setCaptionStyle]=useState('Bold');
  const [audio,setAudio]=useState(()=>read('vidigen_audio',null)),[recording,setRecording]=useState(false);
@@ -238,6 +239,32 @@ function App(){
  function replaceClips(next){snapshot();setClips(next)}
  function patchClip(p){if(!activeClip)return;const next={...activeClip,...p};setEditor(e=>({...e,...p}));replaceClips(clips.map(c=>c.id===activeClip.id?next:c));}
  function patchClipById(id,p){setClips(cur=>cur.map(c=>c.id===id?{...c,...p}:c))}
+ function generationSourceTypeForMode(){
+   if(mode==='Image → Video') return 'image';
+   if(mode==='Video → Video') return 'video';
+   return null;
+ }
+ function chooseGenerationSource(file){
+   if(!file) return;
+   const required=generationSourceTypeForMode();
+   const actual=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':null;
+   if(!required){setGenerationSource(null);setStatus('This creation mode does not need source media.');return}
+   if(!actual){setStatus('Choose a supported image or video file.');return}
+   if(actual!==required){setStatus('This mode needs a '+required+' file. Choose a '+required+' source.');return}
+   const maxBytes=250*1024*1024;
+   if(file.size>maxBytes){setStatus('Source media is larger than 250 MB. Choose a smaller file.');return}
+   if(generationSource?.preview?.startsWith('blob:')) URL.revokeObjectURL(generationSource.preview);
+   setGenerationSource({file,type:actual,name:file.name,preview:URL.createObjectURL(file)});
+   setStatus(file.name+' ready as the '+required+' source.');
+ }
+ function clearGenerationSource(){
+   if(generationSource?.preview?.startsWith('blob:')) URL.revokeObjectURL(generationSource.preview);
+   setGenerationSource(null);
+ }
+ useEffect(()=>{
+   const required=generationSourceTypeForMode();
+   if(generationSource && required!==generationSource.type) clearGenerationSource();
+ },[mode]);
  async function enhancePhoto(){
    if(!activeClip){setStatus('Select a photo first.');return}
    setBgRemoving(true)
@@ -322,7 +349,49 @@ function App(){
  async function analyze(){setStatus('Analyzing creative brief…');try{const r=await gatewayFetch(gateway,'/api/analyze',{method:'POST',body:JSON.stringify({prompt})},token);setAnalysis(await r.json());setStatus('Brief analyzed.')}catch{try{if(!geminiConfigured())throw 0;setAnalysis(await analyzeWithGemini(prompt,gateway,token));setStatus('Gemini analysis ready.')}catch{setAnalysis(normalizeRequest(prompt));setStatus('Local analysis ready.')}}}
  async function improvePrompt(){setStatus('Optimizing creative direction…');try{if(geminiConfigured()){setPrompt(await improvePromptWithGemini(prompt,mode,gateway,token));}else setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus('Creative brief optimized.')}catch(e){setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus(`Local optimization used: ${e.message}`)}}
  function makeScenes(activeProfile=brainProfile){const total=Math.max(1,parseInt(duration)||5);const count=total>=30?5:total>=15?3:Math.max(1,Math.ceil(total/8));const each=Math.max(2,Math.round((total/count)*10)/10);let learned=memoryOn?buildLocalPrompt(prompt,profile,mode):prompt;if(memoryOn&&(activeProfile?.preferred_tags||[]).length){learned+=` Apply the user's learned creative preferences: ${activeProfile.preferred_tags.join(', ')}.`;}const useAutoCamera=cameraMove===CAMERA_MOVES[0];return Array.from({length:count},(_,i)=>{const motion=useAutoCamera?(i===0?'establishing movement':i===count-1?'controlled closing push-in':'deliberate cinematic movement'):cameraMove;return{id:`scene-${Date.now()}-${i}`,duration:each,prompt:`${learned}. Shot ${i+1} of ${count}; camera direction: ${motion}. Preserve subject identity, lighting, wardrobe, location and visual continuity.`,motion}})}
- async function generate(){if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}if(mode==='AI Avatar' && !(providerInfo?.providers||[]).some(p=>p.key==='avatar-gateway'&&p.configured)){setStatus('AI Avatar is not enabled yet. Choose another creation mode or enable the avatar provider.');return}if(mode==='Image → Video' && (!current?.src || !isImageMedia(current))){setStatus('Select an image asset first for Image → Video.');return}if(mode==='Video → Video' && (!current?.src || isImageMedia(current))){setStatus('Select a video clip first for Video → Video.');return}const parsed=normalizeRequest(prompt);if(parsed.riskFlags.length){setStatus(`Blocked: ${parsed.riskFlags.join(', ')}`);return}if(!online){setStatus('Gateway offline — connect a provider or local ComfyUI first.');return}setGenerating(true);setProgress(0);let activeProfile=brainProfile;try{if(token&&online){const rp=await gatewayFetch(gateway,'/api/brain/profile',{},token);activeProfile=await rp.json();setBrainProfile(activeProfile)}}catch{}const scenes=makeScenes(activeProfile);try{const out=[];const sourceNeedsUpload=/image\s*→\s*video|video\s*→\s*video/i.test(mode);const generationSource=sourceNeedsUpload&&current?.src?await prepareGenerationSource(current.src):current?.src||null;for(let i=0;i<scenes.length;i++){setStatus(`AI Director • generating shot ${i+1}/${scenes.length}`);const s=scenes[i];const r=await generateScene(gateway,token,{prompt:s.prompt,mode,ratio,duration:`${s.duration}s`,scene:s,sourceUrl:generationSource,model,tags:parsed.tags},st=>setProgress(Math.round(((i+(st.status==='running'?0.5:1))/scenes.length)*100)));out.push({...s,...DEFAULT_CLIP,videoUrl:r.url,src:r.url,jobId:r.jobId,track:'Video',mediaType:mode==='Text → Image'?'image':'video',kind:mode==='Text → Image'?'AI image':'AI video',title:`Shot ${i+1}`})}replaceClips([...clips,...out]);setActiveId(out[0].id);const rec={id:Date.now(),prompt,mode,model,jobId:out[0].jobId,timestamp:new Date().toISOString(),rating:0,tags:parsed.tags,success:true};if(validateMemoryRecord(rec))setHistory(h=>[rec,...h].slice(0,500));setProjects(p=>[{id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))},...p].slice(0,50));setStatus(`Complete • ${out.length} shot${out.length>1?'s':''} added to timeline.`);setProgress(100)}catch(e){setStatus(e.message)}finally{setGenerating(false)}}
+ async function generate(){
+   if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
+   const requiredSourceType=generationSourceTypeForMode();
+   if(requiredSourceType==='image' && generationSource?.type && generationSource.type!=='image'){setStatus('Choose an image source for Image → Video.');return}
+   if(requiredSourceType==='video' && generationSource?.type && generationSource.type!=='video'){setStatus('Choose a video source for Video → Video.');return}
+   if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
+   const parsed=normalizeRequest(prompt);if(parsed.riskFlags.length){setStatus('Blocked: '+parsed.riskFlags.join(', '));return}
+   let timelineSource=null;
+   let sourceType=null;
+   if(requiredSourceType){
+     if(generationSource?.file){
+       timelineSource=await uploadBlobForRender(generationSource.file,'generation-src/'+Date.now()+'-'+Math.random().toString(36).slice(2)+(generationSource.type==='image'?'.jpg':'.mp4'),generationSource.file.type||'application/octet-stream');
+       sourceType=generationSource.type;
+     }else if(current?.src){
+       if(!isImageMedia(current) && requiredSourceType==='image'){setStatus('Select an image or upload one for Image → Video.');return}
+       if(isImageMedia(current) && requiredSourceType==='video'){setStatus('Select a video or upload one for Video → Video.');return}
+       timelineSource=await prepareGenerationSource(current.src,requiredSourceType);
+       sourceType=requiredSourceType;
+     }else{
+       setStatus('Upload or select a '+requiredSourceType+' source before generating.');return
+     }
+   }
+   setGenerating(true);setProgress(0);let activeProfile=brainProfile;
+   try{
+     if(token&&online){const rp=await gatewayFetch(gateway,'/api/brain/profile',{},token);activeProfile=await rp.json();setBrainProfile(activeProfile)}
+   }catch{}
+   const scenes=makeScenes(activeProfile);
+   try{
+     const out=[];
+     for(let i=0;i<scenes.length;i++){
+       setStatus('AI Director • generating shot '+(i+1)+'/'+scenes.length);
+       const s=scenes[i];
+       const r=await generateScene(gateway,token,{prompt:s.prompt,mode,ratio,duration:s.duration+'s',scene:s,sourceUrl:timelineSource,sourceType,model,tags:parsed.tags},st=>setProgress(Math.round(((i+(st.status==='running'?0.5:1))/scenes.length)*100)));
+       out.push({...s,...DEFAULT_CLIP,videoUrl:r.url,src:r.url,jobId:r.jobId,track:'Video',mediaType:mode==='Text → Image'?'image':'video',kind:mode==='Text → Image'?'AI image':'AI video',title:'Shot '+(i+1)})
+     }
+     replaceClips([...clips,...out]);setActiveId(out[0].id);
+     const rec={id:Date.now(),prompt,mode,model,jobId:out[0].jobId,timestamp:new Date().toISOString(),rating:0,tags:parsed.tags,success:true};
+     if(validateMemoryRecord(rec))setHistory(h=>[rec,...h].slice(0,500));
+     setProjects(p=>[{id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))},...p].slice(0,50));
+     setStatus('Complete • '+out.length+' shot'+(out.length>1?'s':'')+' added to timeline.');setProgress(100)
+   }catch(e){setStatus(e.message)}
+   finally{setGenerating(false)}
+ }
  async function runAICommand(){if(!aiCommand.trim())return;setCommandBusy(true);setStatus('AI Editor is translating your instruction…');try{const r=await gatewayFetch(gateway,'/api/edit-plan',{method:'POST',body:JSON.stringify({command:aiCommand,clips:clips.map(c=>({id:c.id,title:c.title,duration:c.duration,track:c.track,trimStart:c.trimStart,trimEnd:c.trimEnd})),ratio})},token);const plan=await r.json();if(plan.operations?.length){applyOperations(plan.operations);setStatus(`${plan.engine==='groq'?'Groq':'Keyword'} editor applied ${plan.operations.length} timeline operation${plan.operations.length>1?'s':''}.`)}else setStatus('No safe timeline change was identified.');}catch{const q=aiCommand.toLowerCase();if(q.includes('delete')&&activeClip){deleteClip();setStatus('AI Editor deleted the selected clip.')}else if(q.includes('duplicate')&&activeClip){duplicateClip();setStatus('AI Editor duplicated the selected clip.')}else if(q.includes('split')&&activeClip){splitClip()}else setStatus('AI Editor needs the gateway edit planner for this instruction.')}finally{setCommandBusy(false);setAiCommand('')}}
  function applyOperations(ops){let next=[...clips];for(const op of ops){const i=next.findIndex(c=>c.id===op.clipId);if(op.type==='delete'&&i>=0)next.splice(i,1);else if(op.type==='duplicate'&&i>=0)next.splice(i+1,0,{...next[i],id:`clip-${Date.now()}-${i}`,title:`${next[i].title||'Clip'} copy`});else if(op.type==='trim'&&i>=0)next[i]={...next[i],trimStart:Number(op.trimStart??next[i].trimStart),trimEnd:Number(op.trimEnd??next[i].trimEnd)};else if(op.type==='speed'&&i>=0)next[i]={...next[i],speed:Number(op.value)};else if(op.type==='volume'&&i>=0)next[i]={...next[i],volume:Number(op.value)};else if(op.type==='split'&&i>=0){const c=next[i],cut=(Number(c.trimStart||0)+Number(c.trimEnd??c.duration??5))/2;next.splice(i,1,{...c,id:`clip-${Date.now()}-${i}a`,trimEnd:cut,title:`${c.title||'Clip'} A`},{...c,id:`clip-${Date.now()}-${i}b`,trimStart:cut,title:`${c.title||'Clip'} B`})}else if(op.type==='keyframe'&&i>=0)next[i]={...next[i],keyframes:[...(next[i].keyframes||[]),op.keyframe]}}replaceClips(next)}
  async function transcribe(){if(!audio?.blob&&!audio?.file&&!activeClip?.src){setStatus('Add audio or select a video clip first.');return}setCaptioning(true);setStatus('Transcribing audio…');try{let f=audio?.file||audio?.blob;let name=audio?.name||'audio.webm';if(!f&&activeClip?.src){const resp=await fetch(activeClip.src);if(!resp.ok)throw new Error('Could not read the selected video for captions.');f=await resp.blob();name=activeClip.title||'selected-video.mp4'}const fd=new FormData();fd.append('file',f,name);const data=await (await gatewayFetch(gateway,'/api/captions',{method:'POST',body:fd},token)).json();setCaptions(data.segments||[]);setStatus(String((data.segments||[]).length)+' caption segments created.')}catch(e){setStatus(e.message)}finally{setCaptioning(false)}}
@@ -418,7 +487,13 @@ function App(){
   <div className="inspectorTop"><div><b>Create</b><small className="modalSub">Describe what you want. Vidigen handles the production steps.</small></div><span className="tinyBadge">1 • CREATE</span></div>
   <div className="createSteps"><span className="active"><b>1</b> Idea</span><span><b>2</b> Style</span><span><b>3</b> Generate</span></div>
   <label className="sectionLabel">What are you making?</label>
-  <div className="modeGrid">{MODES.map(m=><button key={m} className={`mode ${mode===m?'active':''}`} onClick={()=>setMode(m)}>{m}</button>)}</div>
+  <div className="modeGrid">{MODES.map(m=><button key={m} className={\`mode \${mode===m?'active':''}\`} onClick={()=>setMode(m)}>{m}</button>)}</div>
+  {generationSourceTypeForMode()&&<div className="sourceCard">
+    <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Use an uploaded file or a matching timeline asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
+    {generationSource
+      ? <div className="sourcePreview">{generationSource.type==='image'?<img src={generationSource.preview} alt="" />:<video src={generationSource.preview} muted playsInline controls={false}/>}<div><b>{generationSource.name}</b><small>Ready for {mode}</small></div></div>
+      : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label><span>or select a matching asset in Media</span></div>}
+    </div>}
   <label className="sectionLabel">Your idea</label>
   <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the subject, action, look and result you want…"/>
   <div className="promptMeta"><span>Write naturally — Vidigen turns this into a production brief.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
@@ -437,7 +512,9 @@ function App(){
   <div className="generationSummary"><div><span>{mode==='AI Avatar'?'Avatar provider required':'Ready to generate'}</span><b>{mode} • {duration} • {ratio}</b></div><span className={mode==='AI Avatar'&&!((providerInfo?.providers||[]).some(p=>p.key==='avatar-gateway'&&p.configured))?'badText':online?'okText':'badText'}>{mode==='AI Avatar'&&!((providerInfo?.providers||[]).some(p=>p.key==='avatar-gateway'&&p.configured))?'● Provider unavailable':online?'● Provider ready':'● Connection needs attention'}</span></div>
   <button className="generate" disabled={generating} onClick={generate}>{generating?`Generating ${progress}%`:'Generate'}<small>{generating?'Vidigen is creating your result — you can keep watching the preview.':'Your result will appear in the canvas and timeline.'}</small></button>
 </>}
-    {nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const c={id:`media-${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
+    {nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
+ if(!mediaType){setStatus('Only image and video files are supported.');return}
+ const c={id:\`media-\${Date.now()}\`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
     {nav==='Text'&&<>
       <div className="sectionCard">
         <b>Text &amp; motion</b>
