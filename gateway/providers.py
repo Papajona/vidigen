@@ -408,6 +408,8 @@ class ManifestHTTPProvider(BaseGenerationProvider):
             "duration_seconds": duration_seconds,
             "source_url": payload.get("sourceUrl"),
             "sourceUrl": payload.get("sourceUrl"),
+            "source_type": payload.get("sourceType"),
+            "sourceType": payload.get("sourceType"),
             "model": model,
             "resolution": payload.get("resolution", "720p"),
             "generate_audio": bool(payload.get("generate_audio", True)),
@@ -575,6 +577,53 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         return GenerationResult(self.name, job_id, str(status), output, normalized)
 
 
+class PublicImageURLProvider(BaseGenerationProvider):
+    """Opt-in public/no-key image generator for controlled quality testing.
+
+    The actual URL template is deployment configuration. Vidigen intentionally does not
+    embed a guessed third-party "free" endpoint and call it production-ready.
+    """
+    def __init__(self, spec: dict[str, Any]):
+        self.name = str(spec.get("name", "free-image-test")).strip().lower()
+        self.capabilities = {"image"}
+        self.url_template = str(spec.get("url_template") or spec.get("free_image_url_template") or "").strip()
+        self.models = spec.get("models") or {}
+        self.default_model = str(spec.get("default_model", "free-image-test")).strip()
+
+    def configured(self) -> bool:
+        return bool(self.url_template)
+
+    def model_for(self, payload: dict) -> str:
+        return str(self.models.get("image") or self.default_model)
+
+    def prepare(self, payload: dict) -> dict[str, Any]:
+        if _operation_capability(payload.get("mode")) != "image":
+            raise ProviderError(f"{self.name} is an image-only provider.")
+        if payload.get("sourceUrl"):
+            raise ProviderError("Text → Image does not accept source media.")
+        from urllib.parse import quote
+        prompt = quote(str(payload.get("prompt") or ""), safe="")
+        ratio = str(payload.get("ratio") or "1:1")
+        model = self.model_for(payload)
+        url = (
+            self.url_template
+            .replace("{{prompt}}", prompt)
+            .replace("{{model}}", quote(model, safe=""))
+            .replace("{{ratio}}", quote(ratio, safe=""))
+        )
+        return {"input": {}, "model": model, "_direct_output_url": url}
+
+    async def submit(self, request):
+        url = request.get("_direct_output_url")
+        if not url:
+            raise ProviderError(f"{self.name} did not produce an image URL.")
+        job_id = f"image-{uuid.uuid4().hex}"
+        return GenerationResult(self.name, job_id, "completed", str(url), {"output_url": str(url)})
+
+    async def status(self, job_id: str, status_url: str | None = None):
+        raise ProviderError(f"{self.name} uses synchronous URL output; status polling is not required.")
+
+
 def _manifest_specs() -> list[dict[str, Any]]:
     raw = os.getenv("VIDIGEN_PROVIDER_CONFIG_JSON", "").strip()
     config_file = os.getenv("VIDIGEN_PROVIDER_CONFIG_FILE", str(
@@ -627,7 +676,10 @@ def _build_providers() -> dict[str, BaseGenerationProvider]:
             continue
         if name in providers and not spec.get("replace_builtin"):
             continue
-        providers[name] = ManifestHTTPProvider(spec)
+        if str(spec.get("type", "")).strip().lower() in {"image-url", "public-image-url"}:
+            providers[name] = PublicImageURLProvider(spec)
+        else:
+            providers[name] = ManifestHTTPProvider(spec)
     return providers
 
 
