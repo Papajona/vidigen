@@ -2,7 +2,7 @@ import json
 import os
 import unittest
 
-from gateway.providers import ManifestHTTPProvider, _render_template, _operation_capability
+from gateway.providers import ManifestHTTPProvider, PublicImageURLProvider, _render_template, _operation_capability
 
 
 class ProviderRegistryTests(unittest.TestCase):
@@ -87,6 +87,20 @@ class ProviderRegistryTests(unittest.TestCase):
         })
         self.assertEqual(i2v["model"], "video-model")
         self.assertEqual(i2v["input"]["image"], "https://cdn.example/image.png")
+
+    def test_public_image_url_provider_returns_synchronous_output(self):
+        provider = PublicImageURLProvider({
+            "name": "free-image-test",
+            "url_template": "https://example.invalid/prompt/{{prompt}}?ratio={{ratio}}",
+            "default_model": "free",
+        })
+        prepared = provider.prepare({
+            "mode": "Text → Image",
+            "prompt": "a cat in a studio",
+            "ratio": "1:1",
+        })
+        self.assertIn("a%20cat%20in%20a%20studio", prepared["_direct_output_url"])
+        self.assertEqual(prepared["model"], "free")
 
     def test_provider_supports_video_as_fallback_for_transform_video_modes(self):
         spec = {"name": "video-only", "capabilities": ["video"], "submit_url": "x"}
