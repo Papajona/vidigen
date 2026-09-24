@@ -42,3 +42,8 @@ def test_render_requires_durable_http_sources():
         'clips': [{'uri': 'blob:not-server-readable', 'trimStartMs': 0}]
     }))
     assert r.status_code in (400, 501, 503)
+
+def test_gemini_route_fails_closed_when_not_configured(monkeypatch):
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    r = asyncio.run(call('POST', '/api/gemini/analyze', {'prompt': 'cinematic product ad'}))
+    assert r.status_code == 503
