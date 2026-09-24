@@ -348,11 +348,11 @@ create policy "own daily feature usage" on public.daily_feature_usage for select
 create index if not exists daily_feature_usage_user_date_idx on public.daily_feature_usage(user_id, usage_date desc);
 
 create or replace function public.consume_daily_feature_atomic(p_user_id uuid, p_feature text, p_limit integer)
-returns table(new_count integer)
+returns table(new_count integer, allowed boolean)
 language plpgsql
 security definer
 set search_path=public
-as $
+as $$
 begin
   if p_limit < 1 then raise exception 'daily limit must be positive'; end if;
   insert into public.daily_feature_usage(user_id,usage_date,feature,count)
@@ -361,11 +361,11 @@ begin
     set count=public.daily_feature_usage.count+1, updated_at=now()
     where public.daily_feature_usage.count < p_limit;
   return query
-    select count from public.daily_feature_usage
-     where user_id=p_user_id and usage_date=current_date and feature=p_feature
-       and count <= p_limit;
+    select count, (count <= p_limit) as allowed
+      from public.daily_feature_usage
+     where user_id=p_user_id and usage_date=current_date and feature=p_feature;
 end;
-$;
+$$;
 
 create or replace function public.release_daily_feature_atomic(p_user_id uuid, p_feature text)
 returns table(released boolean)
