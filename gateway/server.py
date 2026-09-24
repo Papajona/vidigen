@@ -745,6 +745,7 @@ async def admin_release_readiness(request: Request, _=Depends(require_admin)):
         'real_generation_route_available': any(providers.values()),
         'admin_2fa_required': ADMIN_2FA_REQUIRED,
         'output_moderation_ready': output_moderation_ready,
+        'gemini_server_configured': bool(os.getenv('GEMINI_API_KEY')),
     }
     moderation_status = {
         'enforce': _moderation.MODERATION_ENFORCE,
