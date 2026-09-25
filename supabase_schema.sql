@@ -355,20 +355,33 @@ returns table(new_count integer, allowed boolean)
 language plpgsql
 security definer
 set search_path=public
-as $$
+as $
+declare
+  current_count integer;
 begin
   if p_limit < 1 then raise exception 'daily limit must be positive'; end if;
+
   insert into public.daily_feature_usage(user_id,usage_date,feature,count)
   values(p_user_id,current_date,p_feature,1)
   on conflict(user_id,usage_date,feature) do update
     set count=public.daily_feature_usage.count+1, updated_at=now()
-    where public.daily_feature_usage.count < p_limit;
-  return query
-    select count, (count <= p_limit) as allowed
+    where public.daily_feature_usage.count < p_limit
+  returning count into current_count;
+
+  -- When the row is already at the limit, PostgreSQL's conditional
+  -- ON CONFLICT update affects zero rows. The previous implementation then
+  -- selected count <= p_limit, incorrectly allowing one extra request.
+  if not found then
+    select count into current_count
       from public.daily_feature_usage
      where user_id=p_user_id and usage_date=current_date and feature=p_feature;
+    return query select current_count, false;
+    return;
+  end if;
+
+  return query select current_count, true;
 end;
-$$;
+$;
 
 create or replace function public.release_daily_feature_atomic(p_user_id uuid, p_feature text)
 returns table(released boolean)
