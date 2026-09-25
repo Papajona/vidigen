@@ -1383,3 +1383,24 @@ body{overflow:hidden}
   .emptyCanvasContent{padding:28px!important}
   .emptyCanvasContent h1{font-size:28px!important}
 }
+
+
+/* V18 — customer auth polish */
+.authModal{width:min(430px,92vw)!important;padding:22px!important}
+.authModal .modalHead{align-items:flex-start!important}
+.authModal .modalHead>b,.authModal .modalHead div>b{font-size:17px!important;letter-spacing:-.02em}
+.authModal .modalSub{display:block!important;margin-top:4px!important;color:rgba(243,245,251,.34)!important;font-size:9px!important;line-height:1.5}
+.authModal form{margin-top:12px}
+.authModal label{margin-top:12px!important;color:rgba(243,245,251,.34)!important;font-size:9px!important;letter-spacing:.04em;text-transform:uppercase}
+.authModal input{min-height:42px!important;border-radius:11px!important;background:#0c1118!important;border:1px solid rgba(255,255,255,.07)!important;color:#f3f5fb!important;padding:10px 12px!important}
+.authModal input:focus{border-color:rgba(154,165,255,.34)!important;box-shadow:0 0 0 3px rgba(154,165,255,.055)!important}
+.authBenefits{display:grid;gap:7px;margin:14px 0 2px;padding:11px 12px;border:1px solid rgba(154,165,255,.08);border-radius:12px;background:rgba(154,165,255,.035);color:rgba(243,245,251,.46);font-size:9px}
+.authConfirm{text-align:center;padding:24px 8px 8px}
+.authConfirmIcon{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;background:rgba(148,221,181,.09);color:#9fe2bd;border:1px solid rgba(148,221,181,.16);font-weight:800}
+.authConfirm>b{font-size:15px}.authConfirm p{max-width:320px;margin:8px auto 16px;font-size:10px!important;color:rgba(243,245,251,.40)!important;line-height:1.6}
+.authActions{display:grid;gap:7px}.authActions button,.authModal .primary{min-height:42px!important;border-radius:11px!important}
+.authModal .secondary{width:100%;padding:10px 12px;border-radius:11px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);color:rgba(243,245,251,.55);font-size:9px;font-weight:700}
+.authLinkButton{width:100%!important;margin-top:8px!important;padding:8px!important;color:rgba(243,245,251,.34)!important;background:transparent!important;border:0!important;font-size:9px!important}
+.authSwitch{width:100%;margin-top:14px!important;padding:9px 4px!important;color:#bfc7ff!important;font-size:9px!important;font-weight:700}
+.authError{margin:9px 0!important;padding:9px 10px;border-radius:9px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.14);color:#f59a9a!important;font-size:9px!important;line-height:1.5}
+.authInfo{margin:9px 0!important;padding:9px 10px;border-radius:9px;background:rgba(154,165,255,.05);border:1px solid rgba(154,165,255,.10);color:#c8d0ff!important;font-size:9px!important;line-height:1.5}
