@@ -169,7 +169,7 @@ function App(){
  const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]));
  const [activeId,setActiveId]=useState(()=>read('vidigen_active_clip',null));
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
- const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false);
+ const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[mobileInspectorOpen,setMobileInspectorOpen]=useState(false);
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
  const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[enhancingPhoto,setEnhancingPhoto]=useState(false),[croppingPhoto,setCroppingPhoto]=useState(false),[cropAspect,setCropAspect]=useState('1:1'),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
  const [generationSource,setGenerationSource]=useState(null);
@@ -407,6 +407,22 @@ function App(){
      setReframing(false)
    }
  }
+ async function signOut(){
+   try{
+     if(supabaseConfigured&&supabase){
+       const {error}=await supabase.auth.signOut({scope:'local'});
+       if(error) throw error;
+     }
+     setStatus('Signed out.');
+   }catch(e){
+     setStatus('Signed out on this device. Server session cleanup reported an error.');
+   }finally{
+     setToken('');
+     sessionStorage.removeItem('vidigen_gateway_token');
+     setShowPasswordReset(false);
+     setShowAuth(true);
+   }
+ }
  function deleteClip(){if(!activeClip)return;replaceClips(clips.filter(c=>c.id!==activeClip.id));setActiveId(null);setStatus('Clip deleted.')}
  function duplicateClip(){if(!activeClip)return;const c={...activeClip,id:`clip-${Date.now()}`,title:`${activeClip.title||'Clip'} copy`};replaceClips([...clips,c]);setActiveId(c.id);setStatus('Clip duplicated.')}
  function moveClip(dir){if(!activeClip)return;const i=clips.findIndex(c=>c.id===activeClip.id),j=i+dir;if(j<0||j>=clips.length)return;const a=[...clips];[a[i],a[j]]=[a[j],a[i]];replaceClips(a)}
@@ -564,16 +580,16 @@ function App(){
  const availabilityDotClass=featureReadyForMode?'okText':'badText';
  const newProject=()=>{if(generating)return;clearGenerationSource();setClips([]);setActiveId(null);setCaptions([]);setAudio(null);setAnalysis(null);setOverlay({text:'',size:42,x:50,y:82,bold:true});setStatus('New project ready.');setNav('Create')};
  return <div className="app">
-  <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="New project" onClick={newProject}>New</button><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
+  <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="New project" onClick={newProject}>New</button><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost authTopButton" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
   <div className="editor">
    <nav className="rail">
   <div className="railGroup">
-    {NAV.map(([n,icon])=><button key={n} className={`railItem ${nav===n?'active':''}`} onClick={()=>setNav(n)}><strong>{icon}</strong><span>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</span></button>)}
+    {NAV.map(([n,icon])=><button key={n} className={`railItem ${nav===n?'active':''}`} onClick={()=>{setNav(n);setMobileInspectorOpen(true)}}><strong>{icon}</strong><span>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</span></button>)}
   </div>
   <div className="railSpacer"/>
   <div className="railUtilities">
-    <button className={`railItem ${nav==='Projects'?'active':''}`} onClick={()=>setNav('Projects')}><strong>□</strong><span>Projects</span></button>
-    <button className={`railItem ${nav==='Billing'?'active':''}`} onClick={()=>setNav('Billing')}><strong>¤</strong><span>Credits</span></button>
+    <button className={`railItem ${nav==='Projects'?'active':''}`} onClick={()=>{setNav('Projects');setMobileInspectorOpen(true)}}><strong>□</strong><span>Projects</span></button>
+    <button className={`railItem ${nav==='Billing'?'active':''}`} onClick={()=>{setNav('Billing');setMobileInspectorOpen(true)}}><strong>¤</strong><span>Credits</span></button>
     <button className="railItem" onClick={()=>setShowSettings(true)}><strong>⚙</strong><span>Settings</span></button>
   </div>
 </nav>
@@ -589,11 +605,11 @@ function App(){
     </div>
     <div className="transport"><button onClick={()=>{if(video.current)video.current.currentTime=0}}>⏮</button><button onClick={()=>video.current?.paused?video.current?.play():video.current?.pause()}>▶/Ⅱ</button><button onClick={()=>{if(video.current)video.current.currentTime=video.current.duration||0}}>⏭</button><div className="scrub" onClick={e=>{if(!video.current?.duration)return;const t=(e.nativeEvent.offsetX/e.currentTarget.clientWidth)*video.current.duration;video.current.currentTime=t;setPreviewTime(t)}}><div style={{width:`${video.current?.duration?((previewTime/video.current.duration)*100):0}%`}}/></div><span>{status}{generating?` • ${progress}%`:''}</span></div>
    </main>
-   <aside className="inspector">
+   <aside className={`inspector ${mobileInspectorOpen?'mobileOpen':''}`}>
     {nav==='Create'&&<>
   <div className="inspectorTop">
-    <div><b>Create</b><small className="modalSub">Give Vidigen the idea. Keep the rest simple.</small></div>
-    <span className="tinyBadge">AI DIRECTOR</span>
+    <div><b>{nav==='Create'?'Create':nav==='Media'?'Assets':nav==='Effects'?'Edit':nav==='Captions'?'Captions':nav==='Projects'?'Projects':'Credits'}</b><small className="modalSub">Give Vidigen the tools you need without leaving the studio.</small></div>
+    <div className="inspectorTopActions"><span className="tinyBadge">{nav==='Create'?'AI DIRECTOR':'STUDIO'}</span><button className="mobileInspectorClose" type="button" aria-label="Close panel" onClick={()=>setMobileInspectorOpen(false)}>×</button></div>
   </div>
   <div className="createStep"><span>01</span><div><label className="sectionLabel">What are you making?</label><small>Pick one. Vidigen handles the rest.</small></div></div>
   <div className="modeGrid silkModes">
@@ -718,14 +734,14 @@ function App(){
   <div className="settingsQuickGrid">
     <section className="settingsSection">
       <div className="settingsSectionHead"><div><b>Workspace</b><span>Simple defaults for every new project.</span></div><span className="settingsState"><i className={online?'on':''}/>{online?'Connected':'Offline'}</span></div>
-      <div className="settingsInline"><span>Generation routing</span><strong>Automatic</strong></div>
+      <div className="settingsInline"><span>Generation routing</span><strong>Auto router</strong></div>
       <div className="settingsInline"><span>Creative Brain</span><strong>{memoryOn?'On':'Off'}</strong></div>
       <button onClick={()=>setMemoryOn(v=>!v)}>{memoryOn?'Turn Brain off':'Turn Brain on'}</button>
       <button onClick={()=>{setShowSettings(false);setShowBrain(true)}}>Open Creative Brain</button>
     </section>
     <section className="settingsSection">
-      <div className="settingsSectionHead"><div><b>Account &amp; credits</b><span>{token?'Signed in':'Sign in to save projects and generate.'}</span></div></div>
-      {supabaseConfigured&&token&&<button onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true);setStatus('Signed out.')}}>Sign out</button>}
+      <div className="settingsSectionHead"><div><b>Account &amp; credits</b><span>{token?'Signed in':'Sign in to generate and keep account-backed history and credits.'}</span></div></div>
+      {supabaseConfigured&&token&&<button onClick={signOut}>Sign out</button>}
       {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
       <button onClick={()=>{setShowSettings(false);setNav('Billing')}}>Open Credits &amp; Billing</button>
     </section>
@@ -753,7 +769,7 @@ function App(){
     onAuthenticated={(accessToken)=>{setToken(accessToken);setShowAuth(false);}}
     onClose={()=>setShowAuth(false)}
   />}
-  <div className="mobileNav">{NAV.map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>setNav(n)}>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</button>)}</div>
+  <div className="mobileNav">{NAV.map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>{setNav(n);setMobileInspectorOpen(true)}}>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</button>)}</div>
  </div>
 }
 
