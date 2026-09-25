@@ -1383,6 +1383,10 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
         if daily.get('plan') == 'free':
             await refund_free_daily_feature(uid,'photo_enhance')
         raise
+    except StorageQuotaExceeded as e:
+        if daily.get('plan') == 'free':
+            await refund_free_daily_feature(uid,'photo_enhance')
+        raise HTTPException(413, str(e))
     except Exception as e:
         if daily.get('plan') == 'free':
             await refund_free_daily_feature(uid,'photo_enhance')
@@ -1752,6 +1756,8 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
         try:
             await _enforce_storage_capacity(user.get('sub'), Path(output_path).stat().st_size)
             s3.upload_file(output_path, bucket, object_key, ExtraArgs={'ContentType': 'video/mp4'})
+        except StorageQuotaExceeded as e:
+            raise HTTPException(413, str(e))
         except Exception as e:
             raise HTTPException(502, f'Could not upload reframed video: {e}')
 
@@ -2149,6 +2155,8 @@ async def _persist_provider_output(output_url: str, uid: str | None, *, image: b
         await _enforce_storage_capacity(uid, total)
         await asyncio.to_thread(s3.upload_file, tmp_path, bucket, key, ExtraArgs={'ContentType':content_type})
         return f'{public_base}/{key}'
+    except StorageQuotaExceeded:
+        raise
     except Exception as exc:
         log.warning('Could not persist provider output to R2; using provider URL: %s', exc)
         return output_url
