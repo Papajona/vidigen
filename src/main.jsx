@@ -202,11 +202,31 @@ function App(){
    if(!supabaseConfigured) return;
    _onUnauthorizedHandler=()=>{setToken('');setShowAuth(true);setStatus('Your session expired — please sign in again.')};
    const {data:sub}=supabase.auth.onAuthStateChange((_event,session)=>{
-     if(_event==='PASSWORD_RECOVERY'){ setShowPasswordReset(true); setShowAuth(false); }
-     if(session?.access_token) setToken(session.access_token);
-     else if(_event!=='PASSWORD_RECOVERY') setToken('');
+     if(_event==='PASSWORD_RECOVERY'){
+       setShowPasswordReset(true);
+       setShowAuth(false);
+     }else if(_event==='SIGNED_IN'){
+       if(session?.access_token) setToken(session.access_token);
+       setShowAuth(false);
+     }else if(_event==='TOKEN_REFRESHED'){
+       if(session?.access_token) setToken(session.access_token);
+     }else if(_event==='SIGNED_OUT'){
+       setToken('');
+       sessionStorage.removeItem('vidigen_gateway_token');
+       setShowPasswordReset(false);
+       setShowAuth(true);
+       setStatus('You have been signed out.');
+     }else if(!session){
+       setToken('');
+       sessionStorage.removeItem('vidigen_gateway_token');
+     }
    });
-   supabase.auth.getSession().then(({data})=>{if(data?.session?.access_token) setToken(data.session.access_token)});
+   supabase.auth.getSession().then(({data})=>{
+     if(data?.session?.access_token) setToken(data.session.access_token);
+   }).catch(()=>{
+     setToken('');
+     sessionStorage.removeItem('vidigen_gateway_token');
+   });
    return ()=>{sub.subscription.unsubscribe();_onUnauthorizedHandler=null};
  },[]);
  useEffect(()=>{if(activeClip){setEditor({...DEFAULT_CLIP,...activeClip});setPreviewTime(0)}},[activeId]); useEffect(()=>{const onKeyDown=e=>{const tag=e.target?.tagName?.toLowerCase();const editing=tag==='input'||tag==='textarea'||tag==='select';const mod=e.ctrlKey||e.metaKey;if(mod&&e.key==='Enter'){e.preventDefault();if(!generating)generate();return}if(mod&&!editing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if(mod&&!editing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(e.key==='/'&&!editing){e.preventDefault();document.querySelector('.prompt')?.focus();}};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[generating,undoStack.length,redoStack.length]);
