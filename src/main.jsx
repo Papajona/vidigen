@@ -440,7 +440,7 @@ function App(){
    if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
    if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
    const generationFeature = mode==='Text → Image' ? featureHealth?.generation?.text_to_image : mode==='Image → Video' ? featureHealth?.generation?.image_to_video : mode==='Video → Video' ? featureHealth?.generation?.video_to_video : featureHealth?.generation?.text_to_video;
-   if(featureHealth && generationFeature===false){setStatus('No configured provider currently supports '+mode+'. Check Settings → Advanced → Feature health.');return}
+   if(featureHealth && generationFeature===false && mode!=='Text → Image'){setStatus('No configured provider currently supports '+mode+'. Check Settings → Advanced → Feature health.');return}
    const requiredSourceType=generationSourceTypeForMode();
    if(requiredSourceType==='image' && generationSource?.type && generationSource.type!=='image'){setStatus('Choose an image source for Image → Video.');return}
    if(requiredSourceType==='video' && generationSource?.type && generationSource.type!=='video'){setStatus('Choose a video source for Video → Video.');return}
@@ -559,7 +559,7 @@ function App(){
  const isImageMedia=(c)=>!!c&&(c.mediaType==='image'||String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||'')));
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
  const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
- const featureReadyForMode=featureHealth ? (mode==='Text → Image'?featureHealth.generation?.text_to_image:mode==='Image → Video'?featureHealth.generation?.image_to_video:mode==='Video → Video'?featureHealth.generation?.video_to_video:featureHealth.generation?.text_to_video) : availableModels.length>1;
+ const featureReadyForMode=mode==='Text → Image' ? (featureHealth ? featureHealth.generation?.text_to_image !== false : true) : (featureHealth ? (mode==='Image → Video'?featureHealth.generation?.image_to_video:mode==='Video → Video'?featureHealth.generation?.video_to_video:featureHealth.generation?.text_to_video) : availableModels.length>1);
  const generationStateLabel=featureHealth ? (featureReadyForMode?'Ready':'Unavailable') : (availableModels.length>1?'Ready':'Checking…');
  const availabilityDotClass=featureReadyForMode?'okText':'badText';
  const newProject=()=>{if(generating)return;clearGenerationSource();setClips([]);setActiveId(null);setCaptions([]);setAudio(null);setAnalysis(null);setOverlay({text:'',size:42,x:50,y:82,bold:true});setStatus('New project ready.');setNav('Create')};
@@ -640,7 +640,7 @@ function App(){
     <div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode}{mode!=='Text → Image'?' • '+duration:''} • {ratio}</b></div>
     <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span>
   </div>
-  <button className="generate silkGenerate" disabled={generating||!featureReadyForMode} onClick={generate}>
+  <button className="generate silkGenerate" disabled={generating} onClick={generate}>
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
     <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
