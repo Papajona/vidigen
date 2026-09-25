@@ -319,7 +319,7 @@ function App(){
      const r=await gatewayFetch(gateway,'/api/photo-enhance',{method:'POST',body:JSON.stringify({media_url:cdn})},token);
      const d=await r.json();
      if(!d.output_url)throw new Error('No enhanced photo returned.');
-     const edited={id:'enhanced-'+Date.now(),title:(activeClip.title||'Photo')+' (enhanced)',kind:'Enhanced photo',src:d.output_url,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP};
+     const edited={id:'enhanced-'+Date.now(),title:(activeClip.title||'Photo')+' (enhanced)',kind:'Enhanced photo',src:d.output_url,track:'Video',mediaType:'image',duration:activeClip.duration||5,...DEFAULT_CLIP};
      replaceClips([...clips,edited]);setActiveId(edited.id);setStatus('Photo enhanced — added as a new asset.');
    }catch(e){setStatus('Photo enhancement failed: '+e.message)}finally{setEnhancingPhoto(false)}
  }
@@ -342,7 +342,7 @@ function App(){
      const out=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not create cropped image.')),'image/jpeg',0.94));
      setStatus('Saving cropped photo…');
      const cdn=await uploadEditorBlob(out,'edited/crop-'+activeClip.id+'-'+Date.now()+'.jpg');
-     const edited={id:'cropped-'+Date.now(),title:(activeClip.title||'Photo')+' (cropped)',kind:'Cropped photo',src:cdn,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP};
+     const edited={id:'cropped-'+Date.now(),title:(activeClip.title||'Photo')+' (cropped)',kind:'Cropped photo',src:cdn,track:'Video',mediaType:'image',duration:activeClip.duration||5,...DEFAULT_CLIP};
      replaceClips([...clips,edited]);setActiveId(edited.id);setStatus('Photo cropped to '+cropAspect+'.');
    }catch(e){setStatus('Photo crop failed: '+e.message)}finally{setCroppingPhoto(false)}
  }
@@ -372,7 +372,7 @@ function App(){
      if(!bgRes.ok){const err=await bgRes.json().catch(()=>({}));throw new Error(err.detail||'Background removal failed.')}
      const result=await bgRes.json()
      if(!result.output_url){setStatus('Background removal is still processing after the timeout — the source job may still finish on Replicate, but this app has no way to check back in on it yet.');return}
-     const c={id:`bgremoved-${Date.now()}`,title:`${activeClip.title||'Clip'} (no bg)`,kind:'Imported media',src:result.output_url,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP}
+     const c={id:`bgremoved-${Date.now()}`,title:`${activeClip.title||'Clip'} (no bg)`,kind:'Background removed',src:result.output_url,track:'Video',mediaType:kind,duration:activeClip.duration||5,...DEFAULT_CLIP}
      replaceClips([...clips,c]);setActiveId(c.id)
      setStatus('Background removed — added as a new clip.')
    }catch(e){
@@ -398,7 +398,7 @@ function App(){
      const reframeRes=await gatewayFetch(gateway,'/api/auto-reframe',{method:'POST',body:JSON.stringify({media_url:cdn_url,target_aspect_w:aw,target_aspect_h:ah})},token)
      if(!reframeRes.ok){const err=await reframeRes.json().catch(()=>({}));throw new Error(err.detail||'Auto-reframe failed.')}
      const result=await reframeRes.json()
-     const c={id:`reframed-${Date.now()}`,title:`${activeClip.title||'Clip'} (${ratio})`,kind:'Imported media',src:result.output_url,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP}
+     const c={id:`reframed-${Date.now()}`,title:`${activeClip.title||'Clip'} (${ratio})`,kind:'Reframed video',src:result.output_url,track:'Video',mediaType:'video',duration:activeClip.duration||5,...DEFAULT_CLIP}
      replaceClips([...clips,c]);setActiveId(c.id)
      setStatus(result.subject_detected?`Reframed to ${ratio} around detected subject.`:`Reframed to ${ratio} (no subject detected — centered crop used).`)
    }catch(e){
@@ -456,7 +456,7 @@ function App(){
    if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
    if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
    const generationFeature = mode==='Text → Image' ? featureHealth?.generation?.text_to_image : mode==='Image → Video' ? featureHealth?.generation?.image_to_video : mode==='Video → Video' ? featureHealth?.generation?.video_to_video : featureHealth?.generation?.text_to_video;
-   if(featureHealth && generationFeature===false && mode!=='Text → Image'){setStatus('No configured provider currently supports '+mode+'. Check Settings → Advanced → Feature health.');return}
+   if(featureHealth && generationFeature===false){setStatus('No configured provider currently supports '+mode+'. Check Settings → Advanced → Feature health.');return}
    const requiredSourceType=generationSourceTypeForMode();
    if(requiredSourceType==='image' && generationSource?.type && generationSource.type!=='image'){setStatus('Choose an image source for Image → Video.');return}
    if(requiredSourceType==='video' && generationSource?.type && generationSource.type!=='video'){setStatus('Choose a video source for Video → Video.');return}
@@ -658,7 +658,7 @@ function App(){
     <div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode}{mode!=='Text → Image'?' • '+duration:''} • {ratio}</b></div>
     <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span>
   </div>
-  <button className="generate silkGenerate" disabled={generating} onClick={generate}>
+  <button className="generate silkGenerate" disabled={generating || !!(featureHealth && !featureReadyForMode)} onClick={generate}>
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
     <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
