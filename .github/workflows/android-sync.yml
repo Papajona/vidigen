@@ -39,7 +39,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
-      - run: ./android/gradlew assembleDebug --no-daemon
+      - run: cd android && ./gradlew assembleDebug --no-daemon
 
       - name: Commit synced web assets
         shell: bash
