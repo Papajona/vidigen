@@ -239,6 +239,19 @@ create index if not exists subscriptions_user_idx on public.subscriptions(user_i
 create index if not exists payments_user_created_idx on public.payments(user_id, created_at desc);
 create index if not exists credit_transactions_user_created_idx on public.credit_transactions(user_id, created_at desc);
 
+-- Internal/admin tables are gateway/service-role only. Keep RLS enabled as defense in depth
+-- and explicitly remove Data API table privileges from anon/authenticated clients.
+revoke all on table
+  public.admin_2fa,
+  public.admin_2fa_sessions,
+  public.admin_audit_log,
+  public.admin_users,
+  public.billing_events,
+  public.credit_ledger,
+  public.payment_events,
+  public.system_prompts
+from anon, authenticated;
+
 -- Output learning: sample metadata and reusable creative patterns. This is retrieval/adaptation,
 -- not automatic foundation-model retraining.
 create table if not exists public.brain_output_samples (
