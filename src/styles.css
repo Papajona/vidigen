@@ -822,3 +822,169 @@ body{background:#090b10}
   .emptyCanvasContent h1{font-size:28px}
   .featureHealthGrid{grid-template-columns:1fr}
 }
+
+
+/* V16 — Silk creator system
+   A softer, calmer workspace: fewer hard edges, less chrome, more focus on the prompt and canvas.
+   Keeps the existing dark creator foundation and all functional controls intact. */
+:root{
+  --accent:#8b96ff;
+  --accent-2:#c2a7ff;
+  --accent-soft:rgba(139,150,255,.12);
+  --silk:#eef0f8;
+  --panel:#10131a;
+  --panel-2:#151922;
+  --panel-3:#0b0e14;
+  --border:rgba(255,255,255,.065);
+  --text-dim:rgba(238,240,246,.52);
+}
+body,.app{background:#080a0f;color:var(--silk)}
+.app{grid-template-rows:56px minmax(0,1fr) 220px 40px}
+.topbar{
+  height:56px;padding:0 16px;gap:14px;
+  background:linear-gradient(180deg,rgba(15,18,24,.97),rgba(12,15,21,.92));
+  border-bottom:1px solid rgba(255,255,255,.055);
+  box-shadow:0 8px 28px rgba(0,0,0,.16);
+}
+.brand{min-width:128px;gap:8px}.brandMark{width:28px;height:28px;border-radius:8px}
+.brand b{font-size:8px;padding:3px 5px;border-radius:999px}
+.projectTitle{font-size:11px;color:rgba(244,246,251,.66)}.projectTitle small{font-size:9px;color:rgba(244,246,251,.3)}
+.topActions{gap:5px}.topActions .ghost,.topActions .export{min-height:32px;padding:7px 10px;border-radius:9px}
+.topActions .ghost{color:rgba(244,246,251,.58);background:transparent}
+.topActions .ghost:hover{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.06)}
+.topActions .export{background:linear-gradient(135deg,#7e8cff,#a47dff);box-shadow:0 8px 22px rgba(139,150,255,.18)}
+.enginePill{padding:5px 8px;font-size:9px;border-radius:999px;background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.06)}
+.avatar{width:30px;height:30px;background:linear-gradient(135deg,#2a3040,#1b2030);color:#d8dcff;border:1px solid rgba(255,255,255,.07)}
+
+.editor{grid-template-columns:60px minmax(0,1fr) 360px}
+.rail{
+  padding:9px 5px;background:linear-gradient(180deg,#0e1117,#0b0e14);
+  border-right:1px solid rgba(255,255,255,.055)
+}
+.railItem{padding:8px 2px;border-radius:10px;gap:3px;color:rgba(244,246,251,.34)}
+.railItem strong{font-size:16px}.railItem span{font-size:9px}
+.railItem.active{background:linear-gradient(180deg,rgba(139,150,255,.12),rgba(139,150,255,.055));color:#d1d6ff}
+.railItem.active:before{left:-5px;width:2px;background:linear-gradient(180deg,#95a0ff,#b091ff);box-shadow:0 0 12px rgba(139,150,255,.38)}
+.railUtilities{padding-top:7px;border-top-color:rgba(255,255,255,.045)}
+
+.center{background:#0a0d12;border-right:1px solid rgba(255,255,255,.055)}
+.previewHeader{height:42px;padding:0 13px;background:rgba(13,16,22,.82);border-bottom-color:rgba(255,255,255,.05)}
+.previewHeader b{font-size:10px}.previewHeader span{font-size:9px;color:rgba(244,246,251,.3)}
+.previewActions{gap:5px}.previewActions button{padding:5px 8px;border-radius:8px;background:#12161f;border-color:rgba(255,255,255,.055);font-size:9px}
+.stage{
+  padding:18px;
+  background:
+    radial-gradient(720px 360px at 50% 43%,rgba(125,136,214,.095),transparent 65%),
+    radial-gradient(520px 280px at 50% 90%,rgba(188,159,255,.045),transparent 72%),
+    #07090d
+}
+.videoFrame{max-width:min(88%,1080px);border-radius:16px;border-color:rgba(255,255,255,.075);box-shadow:0 24px 80px rgba(0,0,0,.56)}
+.emptyCanvas{width:min(720px,88%);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.012)),#0c1016;border-color:rgba(255,255,255,.065);box-shadow:0 24px 70px rgba(0,0,0,.24)}
+.emptyCanvasContent{padding:34px}.emptyCanvasContent h1{font-size:32px}.emptyCanvasContent p{font-size:10px;color:rgba(244,246,251,.38)}
+.eyebrow{font-size:8px!important;color:#b8c0ff!important}.miniHint{font-size:9px!important;padding:8px 11px;border-radius:999px!important;background:rgba(139,150,255,.07)!important;border-color:rgba(139,150,255,.13)!important;color:#c1c8ff!important}
+.transport{height:36px;padding:0 13px;background:#0a0d12;border-top-color:rgba(255,255,255,.05)}
+.transport button{padding:5px 7px;border-radius:7px;background:#11151d;border-color:rgba(255,255,255,.055);font-size:9px}
+.transport span{font-size:9px;color:rgba(244,246,251,.28)}
+
+.inspector{
+  padding:13px 14px 18px;
+  background:linear-gradient(180deg,#10131a,#0f1218);
+  border-left-color:rgba(255,255,255,.05)
+}
+.inspectorTop{margin-bottom:9px;padding-bottom:5px;background:transparent}
+.inspectorTop div>b{font-size:13px}.inspectorTop .modalSub{font-size:9px;margin-top:3px;color:rgba(244,246,251,.32)}
+.tinyBadge{font-size:8px;padding:4px 7px;border-color:rgba(139,150,255,.13);background:rgba(139,150,255,.055);color:#b9c1ff}
+.sectionLabel{margin:10px 0 6px!important;font-size:9px!important;letter-spacing:.11em;color:rgba(244,246,251,.32)!important}
+.modeGrid{gap:6px}
+.mode{
+  min-height:44px;padding:9px 8px;border-radius:12px;
+  background:linear-gradient(180deg,#141820,#12161e);
+  border-color:rgba(255,255,255,.055);font-size:9px;color:rgba(244,246,251,.65)
+}
+.mode:hover{background:#171b24;border-color:rgba(139,150,255,.2)}
+.mode.active{
+  background:linear-gradient(135deg,rgba(139,150,255,.16),rgba(194,167,255,.075));
+  border-color:rgba(139,150,255,.34);color:#f0f2ff;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 8px 22px rgba(66,74,130,.1)
+}
+.sourceCard{margin-top:9px;padding:10px;border-radius:13px;background:linear-gradient(180deg,rgba(139,150,255,.065),rgba(255,255,255,.01));border-color:rgba(139,150,255,.14)}
+.sourceDrop{min-height:62px;margin-top:8px;border-color:rgba(255,255,255,.1);border-radius:10px}
+.sourcePreview img,.sourcePreview video{width:52px;height:52px;border-radius:9px}
+.textButton{border-color:rgba(255,255,255,.075);background:rgba(255,255,255,.02);color:rgba(244,246,251,.42)}
+.prompt{
+  min-height:118px!important;padding:13px!important;border-radius:14px!important;
+  background:linear-gradient(180deg,#0a0d12,#0b0e13)!important;
+  border-color:rgba(255,255,255,.075)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.018);
+}
+.prompt::placeholder{color:rgba(244,246,251,.26)}
+.prompt:focus{border-color:rgba(139,150,255,.42)!important;box-shadow:0 0 0 3px rgba(139,150,255,.065)!important}
+.promptMeta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px;font-size:8px!important;color:rgba(244,246,251,.25)}
+.promptMeta kbd{font-size:8px;padding:3px 5px;border-radius:6px;background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.055);color:rgba(244,246,251,.36)}
+.promptChips{gap:5px;margin-top:7px}
+.promptChips button{padding:6px 9px!important;border-radius:999px!important;background:#131720!important;border-color:rgba(255,255,255,.05)!important;font-size:8px!important}
+.promptActions{gap:4px;margin-top:6px}.promptActions button{padding:6px 7px!important;border-radius:8px!important;font-size:9px!important;color:rgba(244,246,251,.43)!important}
+.analysis.compactAnalysis{margin-top:7px;padding:8px 10px;border-radius:10px}
+.analysis.compactAnalysis span{font-size:9px!important}.analysis.compactAnalysis small{display:none}
+.quickSettings{
+  display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding:9px;
+  border:1px solid rgba(255,255,255,.05);border-radius:12px;background:rgba(255,255,255,.018)
+}
+.quickSettings>div label{margin:0 0 5px;font-size:8px;color:rgba(244,246,251,.3);text-transform:uppercase;letter-spacing:.08em}
+.quickSettings select{width:100%;padding:8px 9px;border-radius:9px;background:#10141b;border-color:rgba(255,255,255,.06);font-size:9px}
+.advancedSettings{margin-top:7px;border-top:1px solid rgba(255,255,255,.045);border-bottom:1px solid rgba(255,255,255,.045)}
+.advancedSettings summary{padding:10px 2px;font-size:9px;color:rgba(244,246,251,.52)}
+.advancedSettings summary small{font-size:8px;color:rgba(244,246,251,.23)}
+.advancedBody{padding-bottom:10px}
+.advancedBody select{border-radius:9px;background:#10141b;border-color:rgba(255,255,255,.06);font-size:9px}
+.generationSummary.simpleSummary{margin-top:8px;padding:9px 10px;border-radius:11px;min-height:46px;background:linear-gradient(135deg,rgba(139,150,255,.065),rgba(194,167,255,.025));border-color:rgba(139,150,255,.12)}
+.generationSummary span{font-size:8px!important}.generationSummary b{font-size:9px!important}
+.generate{
+  margin-top:8px!important;min-height:44px!important;padding:10px 12px!important;border-radius:12px!important;
+  background:linear-gradient(135deg,#7e8eff,#a27eff)!important;
+  box-shadow:0 12px 26px rgba(112,120,208,.16)!important
+}
+.generate small{font-size:8px!important;color:rgba(255,255,255,.68)!important}
+.sectionCard{border-radius:13px;background:#13171f;border-color:rgba(255,255,255,.055);box-shadow:0 10px 26px rgba(0,0,0,.1)}
+.sectionCard button{border-radius:9px}
+.featureHealthPanel{background:#0d1016;border-color:rgba(255,255,255,.045)}
+.timelinePanel{height:auto;min-height:0;background:#0c0f14;border-top-color:rgba(255,255,255,.06);border-bottom-color:rgba(255,255,255,.06)}
+.timelineTop{height:40px;background:#0e1117}.timelineButtons button{font-size:8px;padding:5px 7px;border-radius:7px}
+.timelineBody{height:calc(100% - 40px)}.row{min-height:40px}.clip{height:30px;border-radius:8px}
+.feedback{height:40px;padding:0 12px;background:#0d1016;border-top-color:rgba(255,255,255,.045)}
+.feedback button{padding:5px 8px;border-radius:999px;font-size:8px}.feedback span{font-size:8px;color:rgba(244,246,251,.26)}
+
+.settingsModal{width:min(700px,92vw)!important;max-height:82vh!important;border-radius:20px!important;background:linear-gradient(180deg,#11151d,#0f131a)!important}
+.settingsModal .modalHead{margin-bottom:12px}
+.settingsModal .modalHead>b,.settingsModal .modalHead div>b{font-size:15px}
+.settingsTabsSimple{display:grid!important;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.settingsTabsSimple button{min-width:0!important;padding:9px!important;border-radius:10px!important;background:#131720!important;border-color:rgba(255,255,255,.05)!important;font-size:9px!important}
+.settingsTabsSimple button.active{background:rgba(139,150,255,.09)!important;border-color:rgba(139,150,255,.16)!important;color:#cbd2ff!important}
+.settingsGridSimple{grid-template-columns:1fr 1fr!important;gap:10px}
+.settingsGridSimple .settingsSection{padding:14px!important;border-radius:14px!important;background:#13171f!important;border-color:rgba(255,255,255,.05)!important}
+.settingsGridSimple .settingsSection>b{font-size:11px}.settingsGridSimple .settingsSection>span{font-size:9px;line-height:1.55;color:rgba(244,246,251,.34)}
+.settingsGridSimple .stats{gap:6px;margin-top:9px}.settingsGridSimple .stats div{padding:9px;border-radius:10px;background:#0f1319;border-color:rgba(255,255,255,.045)}
+.settingsGridSimple .stats b{font-size:15px}.settingsGridSimple .stats span{font-size:8px}
+.settingsGridSimple .settingsInline{padding:7px 0;border-top-color:rgba(255,255,255,.045)}
+.settingsGridSimple .settingsInline span{font-size:9px}.settingsGridSimple .settingsInline strong{font-size:9px}
+.settingsGridSimple .settingsSection button{margin-top:7px;padding:8px 10px;font-size:9px}
+.advancedDiagnostics{margin-top:10px;border:1px solid rgba(255,255,255,.05);border-radius:11px;background:rgba(255,255,255,.015)}
+.advancedDiagnostics summary{padding:10px;font-size:9px;color:rgba(244,246,251,.55);cursor:pointer}
+.advancedDiagnostics[open] summary{border-bottom:1px solid rgba(255,255,255,.045)}
+.advancedDiagnostics .providerRow{padding:8px 10px}
+.settingsModal .primary{margin-top:12px;border-radius:11px;min-height:40px}
+.settingsModal .featureHealthGrid{grid-template-columns:1fr 1fr}
+@media(max-width:900px){
+  .app{grid-template-rows:56px auto 210px 44px}
+  .editor{grid-template-columns:58px minmax(0,1fr) 340px}
+}
+@media(max-width:700px){
+  .app{grid-template-rows:56px auto 190px 56px}
+  .topbar{padding:0 9px}.brand{min-width:0}.brand b,.projectTitle{display:none}
+  .topActions .enginePill,.topActions .ghost:not(:last-of-type),.topActions .avatar{display:none}
+  .topActions .export{padding:7px 10px}
+  .editor{grid-template-columns:1fr;grid-template-rows:minmax(430px,auto) auto}
+  .center{grid-column:1;grid-row:1;min-height:430px}.inspector{grid-column:1;grid-row:2;max-height:500px;padding:11px}
+  .quickSettings{padding:8px}.mode{min-height:42px}.prompt{min-height:106px!important}
+  .settingsGridSimple{grid-template-columns:1fr!important}.settingsModal .featureHealthGrid{grid-template-columns:1fr}
+}
