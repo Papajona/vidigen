@@ -24,10 +24,6 @@
       };
       window.addEventListener('error', e => bootError(e.error?.stack || e.message), true);
       window.addEventListener('unhandledrejection', e => bootError(e.reason?.stack || e.reason?.message || String(e.reason || 'Unhandled promise rejection')), true);
-
-      // Recover browsers that still hold an older Vidigen service worker/cache.
-      // This runs once per browser session after this deployment, then the current
-      // service worker is registered normally below.
       if ('serviceWorker' in navigator && !sessionStorage.getItem(RESET_KEY)) {
         navigator.serviceWorker.getRegistrations().then(async registrations => {
           if (!registrations.length) return;
@@ -46,6 +42,7 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
+  <link rel="stylesheet" href="/src/silk-refinement.css?v=20260925"/>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
