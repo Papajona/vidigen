@@ -1,0 +1,92 @@
+/* Vidigen Silk UX Refinement — creation-first, calm settings, premium studio */
+:root{
+  --silk-0:#080b10;--silk-1:#0e1219;--silk-2:#151a23;
+  --silk-line:rgba(255,255,255,.085);--silk-line2:rgba(255,255,255,.14);
+  --silk-text:#f5f7fb;--silk-muted:#8792a3;
+  --silk-violet:#b7a2ff;--silk-blue:#91c2ff;
+}
+html,body,#root{min-height:100%;background:var(--silk-0)!important}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{background:
+ radial-gradient(800px 420px at 50% -10%,rgba(183,162,255,.10),transparent 70%),
+ radial-gradient(700px 420px at 100% 35%,rgba(145,194,255,.055),transparent 72%),
+ linear-gradient(180deg,#090c11,#0d1118)!important}
+.topbar{background:rgba(9,12,17,.78)!important;border-bottom:1px solid var(--silk-line)!important;backdrop-filter:blur(24px)!important}
+.brandMark{background:linear-gradient(135deg,var(--silk-violet),var(--silk-blue))!important;color:#10131a!important;box-shadow:0 8px 28px rgba(183,162,255,.18)!important}
+.center{background:transparent!important}
+.stage{background:
+ radial-gradient(600px 330px at 50% 38%,rgba(183,162,255,.065),transparent 72%),
+ radial-gradient(500px 300px at 75% 75%,rgba(145,194,255,.045),transparent 75%),
+ linear-gradient(180deg,#11161e,#0b0f15)!important;border-color:var(--silk-line)!important}
+.videoFrame{border-radius:22px!important;box-shadow:0 28px 80px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.035)!important}
+.inspector{background:linear-gradient(180deg,rgba(20,25,33,.95),rgba(13,17,23,.96))!important;border-color:var(--silk-line)!important;box-shadow:0 25px 70px rgba(0,0,0,.32)!important}
+.inspectorTop{border-bottom:1px solid var(--silk-line)!important}
+.inspectorTop b{letter-spacing:-.035em!important}
+.modeGrid.silkModes{gap:7px!important}
+.modeGrid .mode{min-height:48px!important;border-radius:12px!important;background:rgba(255,255,255,.026)!important;border-color:var(--silk-line)!important}
+.modeGrid .mode.active{background:linear-gradient(145deg,rgba(183,162,255,.16),rgba(145,194,255,.07))!important;border-color:rgba(183,162,255,.34)!important}
+.silkPrompt{min-height:150px!important;border-radius:16px!important;background:rgba(255,255,255,.035)!important;border-color:var(--silk-line)!important}
+.silkPrompt:focus{border-color:rgba(183,162,255,.45)!important;box-shadow:0 0 0 4px rgba(183,162,255,.07)!important}
+.silkQuickSettings{grid-template-columns:1fr 1fr!important;gap:8px!important}
+.silkQuickSettings select{min-height:40px!important;border-radius:11px!important;background:#121720!important;border-color:var(--silk-line)!important}
+.silkGenerate{min-height:54px!important;border-radius:15px!important;background:linear-gradient(135deg,#b7a2ff,#91c2ff)!important;color:#0b0e14!important;box-shadow:0 16px 34px rgba(183,162,255,.16)!important}
+.silkGenerate:hover{transform:translateY(-1px)!important;box-shadow:0 20px 38px rgba(183,162,255,.22)!important}
+.silkMore{border-top:1px solid var(--silk-line)!important;margin-top:12px!important;padding-top:2px!important}
+.silkMore>summary{color:#9aa5b5!important}
+.silkMoreBody{padding-top:8px!important}
+.silkSummary{background:rgba(255,255,255,.022)!important;border-color:var(--silk-line)!important}
+.silkSource{background:rgba(255,255,255,.022)!important;border-color:var(--silk-line)!important}
+.timelinePanel{background:rgba(8,11,16,.94)!important;border-color:var(--silk-line)!important}
+.timelineTop{background:rgba(255,255,255,.018)!important}
+.rail{background:rgba(12,16,22,.78)!important;border-color:var(--silk-line)!important;backdrop-filter:blur(22px)!important}
+.railItem.active{background:linear-gradient(145deg,rgba(183,162,255,.15),rgba(145,194,255,.06))!important;border-color:rgba(183,162,255,.24)!important}
+.emptyCanvasContent h1{letter-spacing:-.055em!important}
+.emptyCanvasContent p{color:#8b96a7!important}
+
+/* Settings: turn the modal into a small, calm control center. */
+.silkSettings{width:min(680px,calc(100vw - 32px))!important;padding:22px!important;border-radius:22px!important;background:linear-gradient(180deg,#151a22,#10151c)!important;border-color:var(--silk-line)!important}
+.silkSettings .modalHead{margin-bottom:16px!important}
+.silkSettings .modalHead b{font-size:20px!important;letter-spacing:-.035em!important}
+.silkSettings .modalSub{display:block!important;margin-top:4px!important;color:#7e8999!important;font-size:9px!important}
+.settingsQuickGrid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important}
+.settingsSection{padding:14px!important;border-radius:15px!important;background:rgba(255,255,255,.025)!important;border:1px solid var(--silk-line)!important}
+.settingsSectionHead{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;margin-bottom:10px!important}
+.settingsSectionHead b{font-size:11px!important}
+.settingsSectionHead span{display:block!important;color:#7d8898!important;font-size:8px!important;line-height:1.45!important}
+.settingsState{white-space:nowrap!important;display:flex!important;align-items:center!important;gap:5px!important}
+.settingsState i{width:6px!important;height:6px!important;border-radius:50%!important;background:#667080!important}
+.settingsState i.on{background:#82dfbd!important;box-shadow:0 0 10px rgba(130,223,189,.45)!important}
+.settingsInline{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;padding:9px 0!important;border-top:1px solid rgba(255,255,255,.055)!important}
+.settingsInline span{font-size:8px!important;color:#7e8999!important}
+.settingsInline strong{font-size:9px!important;color:#dce1e9!important;text-align:right!important}
+.settingsSection>button{width:100%!important;min-height:34px!important;margin-top:7px!important;border-radius:10px!important;background:rgba(255,255,255,.035)!important;border:1px solid var(--silk-line)!important;font-size:8px!important;color:#cbd2dd!important}
+.settingsSection>button:hover{background:rgba(183,162,255,.08)!important;border-color:rgba(183,162,255,.25)!important}
+.settingsAdvanced{margin-top:10px!important;border:1px solid var(--silk-line)!important;border-radius:15px!important;background:rgba(255,255,255,.018)!important;overflow:hidden!important}
+.settingsAdvanced>summary{list-style:none!important;cursor:pointer!important;padding:12px 14px!important}
+.settingsAdvanced>summary::-webkit-details-marker{display:none!important}
+.settingsAdvanced>summary>span{display:flex!important;flex-direction:column!important;gap:3px!important}
+.settingsAdvanced>summary b{font-size:9px!important;color:#cfd6e1!important}
+.settingsAdvanced>summary small{font-size:7px!important;color:#737f90!important}
+.settingsAdvanced>summary i{font-style:normal!important;color:#778293!important;float:right!important}
+.settingsAdvancedBody{padding:0 14px 14px!important}
+.advancedDiagnostics{margin-top:9px!important;border-top:1px solid var(--silk-line)!important;padding-top:9px!important}
+.advancedDiagnostics>summary{cursor:pointer!important;color:#aeb7c5!important;font-size:8px!important}
+.providerRow{display:flex!important;justify-content:space-between!important;align-items:center!important;padding:8px 0!important;border-bottom:1px solid rgba(255,255,255,.045)!important}
+.providerRow b{font-size:8px!important}
+.providerRow small{display:block!important;color:#6f7a8a!important;font-size:7px!important;margin-top:2px!important}
+.providerGood,.providerOff{font-size:7px!important;padding:4px 7px!important;border-radius:999px!important;background:rgba(255,255,255,.035)!important}
+.providerGood{color:#82dfbd!important}.providerOff{color:#778293!important}
+.featureHealthPanel{margin-top:10px!important;padding:10px!important;border-radius:12px!important;background:rgba(255,255,255,.022)!important;border:1px solid var(--silk-line)!important}
+.featureHealthHead{display:flex!important;justify-content:space-between!important;gap:10px!important}
+.featureHealthHead b{font-size:8px!important}.featureHealthHead span{font-size:7px!important;color:#737e8e!important}
+.healthBadge{white-space:nowrap!important;color:#aeb7c5!important}
+.featureHealthGrid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px!important;margin-top:9px!important}
+.featureHealthItem{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:6px!important;padding:6px 7px!important;border-radius:8px!important;background:rgba(255,255,255,.025)!important}
+.featureHealthItem span{font-size:7px!important;color:#8d98a8!important}.featureHealthItem b{font-size:6px!important}
+.featureOn{color:#82dfbd!important}.featureOff{color:#6e7887!important}
+.silkDone{margin-top:12px!important;min-height:42px!important;border-radius:12px!important;background:linear-gradient(135deg,#b7a2ff,#91c2ff)!important;color:#0b0e14!important;font-weight:800!important}
+@media(max-width:720px){
+ .settingsQuickGrid{grid-template-columns:1fr!important}
+ .silkSettings{padding:16px!important}
+ .featureHealthGrid{grid-template-columns:1fr!important}
+}
