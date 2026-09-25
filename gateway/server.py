@@ -460,7 +460,7 @@ def _clip_video_filter(ratio: str, clip: RenderClip) -> str:
         weight=800 if clip.overlay.bold else 500
         filters.append(
             f"drawtext=text='{text}':x=(w*{float(clip.overlay.x)/100:.4f})-text_w/2:y=(h*{float(clip.overlay.y)/100:.4f})-text_h/2:"
-            f'fontsize={float(clip.overlay.size):.1f}:fontcolor=white:borderw=4:bordercolor=black@0.65:fontweight={weight}'
+            f'fontsize={float(clip.overlay.size):.1f}:fontcolor=white:borderw={3 if weight>=700 else 2}:bordercolor=black@0.65'
         )
     return ','.join(filters)
 
@@ -482,11 +482,13 @@ def _run_ffmpeg_render(inputs: list[tuple[str,int,int|None,str,RenderClip]], rat
                 probe_audio=subprocess.run(['ffprobe','-v','error','-select_streams','a:0','-show_entries','stream=index','-of','csv=p=0',src],capture_output=True,text=True,timeout=30)
                 has_audio=bool(probe_audio.stdout.strip())
                 cmd=['ffmpeg','-y','-ss',str(start_ms/1000.0),'-i',src]
+                audio_filters=_atempo_chain(speed)
+                audio_filters.append(f'volume={float(clip.volume):.4f}')
+                audio_filter=','.join(audio_filters)
                 if has_audio:
-                    cmd += ['-map','0:v:0','-map','0:a:0','-vf',clip_filter,'-filter:a',','.join(_atempo_chain(speed)) if abs(speed-1)>0.001 else 'volume=1','-c:v','libx264','-preset','veryfast','-crf','20','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart']
+                    cmd += ['-map','0:v:0','-map','0:a:0','-vf',clip_filter,'-filter:a',audio_filter,'-c:v','libx264','-preset','veryfast','-crf','20','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart']
                 else:
-                    cmd += ['-f','lavfi','-i','anullsrc=channel_layout=stereo:sample_rate=48000','-map','0:v:0','-map','1:a:0','-vf',clip_filter,'-filter:a',','.join(_atempo_chain(speed)) if abs(speed-1)>0.001 else 'anull','-c:v','libx264','-preset','veryfast','-crf','20','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart']
-                cmd += ['-filter:a',f'volume={float(clip.volume):.4f}']
+                    cmd += ['-f','lavfi','-i','anullsrc=channel_layout=stereo:sample_rate=48000','-map','0:v:0','-map','1:a:0','-vf',clip_filter,'-filter:a',audio_filter,'-c:v','libx264','-preset','veryfast','-crf','20','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart']
                 if end_ms is not None:
                     cmd += ['-t',str(max(0.1,(end_ms-start_ms)/1000.0)/max(0.25,min(4.0,speed)))]
                 cmd += [part]
