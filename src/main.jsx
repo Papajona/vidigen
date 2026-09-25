@@ -169,7 +169,7 @@ function App(){
  const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]));
  const [activeId,setActiveId]=useState(()=>read('vidigen_active_clip',null));
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
- const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[settingsTab,setSettingsTab]=useState('general');
+ const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false);
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
  const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
  const [generationSource,setGenerationSource]=useState(null);
@@ -585,7 +585,8 @@ function App(){
     <button type="button" onClick={()=>{setPrompt('Create a vertical social video with a strong opening hook, punchy pacing, captions and a memorable ending.');setRatio('9:16');setMode('Text → Video')}}>Social</button>
     <button type="button" onClick={()=>{setPrompt('Create a cinematic still with refined lighting, rich composition and a premium editorial feel.');setMode('Text → Image')}}>Image</button>
   </div>
-  <div className="createStep createStepAfter"><span>03</span><div><label className="sectionLabel">Output</label><small>Format and length.</small></div></div><div className="quickSettings silkQuickSettings"
+  <div className="createStep createStepAfter"><span>03</span><div><label className="sectionLabel">Output</label><small>Format and length.</small></div></div>
+  <div className="quickSettings silkQuickSettings">
     <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
     {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
   </div>
