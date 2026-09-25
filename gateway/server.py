@@ -1397,7 +1397,10 @@ async def remove_background_endpoint(req: RemoveBackgroundRequest, request: Requ
         raise HTTPException(502, str(e))
     if not result.output_url and result.status not in ('starting', 'processing'):
         raise HTTPException(502, 'Background removal did not return an output.')
-    return {'status': result.status, 'output_url': result.output_url, 'job_id': result.job_id}
+    durable=result.output_url
+    if result.output_url:
+        durable=await _persist_provider_output(result.output_url, (user or {}).get('sub') if isinstance(user,dict) else None, image=req.kind=='image')
+    return {'status': result.status, 'output_url': durable, 'job_id': result.job_id}
 
 class R2PresignRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -1888,6 +1891,86 @@ async def _auto_learn_output(user: dict | None, prompt_id: str, output_url: str,
         LEARNED_OUTPUTS.discard(prompt_id)
         log.exception(f'Brain auto-learning failed for job {prompt_id}')
 
+
+async def _persist_provider_output(output_url: str, uid: str | None, *, image: bool = False) -> str:
+    """Copy an external provider result into caller-scoped R2 storage when configured.
+
+    Provider CDN URLs are often temporary. Keeping the external URL as the timeline asset
+    creates a delayed production dead-end: the clip can work now and fail later during
+    editing/export after the provider URL expires. R2 is therefore the durable boundary.
+    If R2 is unavailable, return the provider URL unchanged rather than breaking an
+    otherwise successful generation.
+    """
+    if not output_url or not uid:
+        return output_url
+    endpoint, access_key, secret_key, bucket, cdn_base = (
+        os.getenv(k, '') for k in (
+            'R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY',
+            'R2_BUCKET', 'R2_PUBLIC_BASE_URL'
+        )
+    )
+    if not all((endpoint, access_key, secret_key, bucket, cdn_base)):
+        return output_url
+
+    public_base=cdn_base.rstrip('/')
+    if output_url.startswith(public_base + '/'):
+        return output_url
+
+    try:
+        parsed=urllib.parse.urlparse(output_url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return output_url
+        import mimetypes, tempfile
+        import boto3
+        from botocore.config import Config as BotoConfig
+        content_type=''
+        suffix=''
+        guessed,_=mimetypes.guess_type(parsed.path)
+        if guessed:
+            content_type=guessed
+            suffix='.' + guessed.split('/')[-1].replace('jpeg','jpg')
+        if image:
+            content_type=content_type if content_type.startswith('image/') else 'image/png'
+            suffix=suffix if suffix else '.png'
+        else:
+            content_type=content_type if content_type.startswith('video/') else 'video/mp4'
+            suffix=suffix if suffix else '.mp4'
+
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
+            async with client.stream('GET', output_url) as response:
+                if response.status_code >= 400:
+                    log.warning('Provider output download returned HTTP %s for %s', response.status_code, output_url[:160])
+                    return output_url
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp_path=tmp.name
+                    total=0
+                    async for chunk in response.aiter_bytes(1024 * 1024):
+                        total += len(chunk)
+                        if total > MAX_RENDER_BYTES:
+                            raise ValueError('Provider output exceeds the configured durable-media size limit.')
+                        tmp.write(chunk)
+
+        s3=boto3.client(
+            's3',
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=BotoConfig(signature_version='s3v4'),
+            region_name='auto',
+        )
+        key=f'users/{uid}/generations/{uuid.uuid4().hex}{suffix}'
+        await asyncio.to_thread(s3.upload_file, tmp_path, bucket, key, ExtraArgs={'ContentType':content_type})
+        return f'{public_base}/{key}'
+    except Exception as exc:
+        log.warning('Could not persist provider output to R2; using provider URL: %s', exc)
+        return output_url
+    finally:
+        try:
+            if 'tmp_path' in locals():
+                Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
 @app.get('/api/status/{prompt_id}')
 async def status(prompt_id:str,request:Request,user=Depends(auth)):
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',prompt_id): raise HTTPException(400,'Invalid prompt ID')
@@ -1905,6 +1988,17 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
         try:
             result=await PROVIDERS[provider].status(external,(job.get('request') or {}).get('_status_url'))
             if result.status.lower() in ('succeeded','completed','successful','complete') and result.output_url:
+                durable_output=job.get('_durable_output_url')
+                if not durable_output:
+                    durable_output=await _persist_provider_output(
+                        result.output_url,
+                        (user or {}).get('sub') if isinstance(user,dict) else None,
+                        image=_is_image_mode((job.get('request') or {}).get('mode','')),
+                    )
+                    job['_durable_output_url']=durable_output
+                    JOB_CACHE[prompt_id]=job
+                else:
+                    durable_output=durable_output
                 # Output moderation happens ONCE per job, cached on the job record — not
                 # re-run on every poll a client makes while waiting, which would otherwise
                 # mean repeated Replicate charges and repeated ffmpeg frame extraction for
@@ -1913,7 +2007,7 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                 if mod_result is None:
                     from gateway.moderation import moderate_output_video, moderate_output_image
                     op=(job.get('request') or {}).get('mode','')
-                    mod_result=await (moderate_output_image(result.output_url) if _is_image_mode(op) else moderate_output_video(result.output_url))
+                    mod_result=await (moderate_output_image(durable_output) if _is_image_mode(op) else moderate_output_video(durable_output))
                     job['_moderation']=mod_result
                     JOB_CACHE[prompt_id]=job
                 if not mod_result.get('safe'):
@@ -1932,9 +2026,9 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                         await persistence.update_job(prompt_id,status='blocked',error='Output failed content moderation.')
                     return {'status':'error','error':'This generation was blocked by content moderation. Any credits charged have been refunded.'}
                 if persistence.enabled() and user and user.get('sub'): await persistence.update_job(prompt_id,status='completed',completed_at=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
-                if user and user.get('sub'): asyncio.create_task(_auto_learn_output(user,prompt_id,result.output_url,provider))
+                if user and user.get('sub'): asyncio.create_task(_auto_learn_output(user,prompt_id,durable_output,provider))
                 output_key='outputUrl' if _operation_capability((job.get('request') or {}).get('mode'))=='image' else 'videoUrl'
-                return {'status':'complete',output_key:result.output_url,'outputUrl':result.output_url,'provider':provider}
+                return {'status':'complete',output_key:durable_output,'outputUrl':durable_output,'provider':provider}
             if result.status.lower() in ('failed','canceled','cancelled','error'):
                 request_data=job.get('request') or {}
                 candidates=[str(x).lower() for x in (request_data.get('_provider_candidates') or []) if str(x).lower() in PROVIDERS]
