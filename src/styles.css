@@ -2645,3 +2645,19 @@ button,select,textarea,input{outline:none}
   .railGroup{width:100%!important}
   .railGroup .railItem{min-width:50px!important;width:50px!important;flex:1 1 0!important}
 }
+
+/* Final responsive sheet behavior and storage meter polish */
+.storageMeter{margin-top:10px;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.025)}
+.storageMeter>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:9px;color:var(--text-dim)}
+.storageMeter strong{font-size:10px;color:var(--text)}
+.storageBar{height:6px;margin-top:7px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}
+.storageBar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent-2));min-width:2px}
+@media(max-width:900px){
+  .inspector{transform:translateY(105%)!important}
+  .inspector.mobileOpen{transform:translateY(0)!important}
+}
+@media(max-width:700px){
+  .storageMeter{padding:8px 9px}
+  .storageMeter>div:first-child{font-size:8px}
+  .storageMeter strong{font-size:9px}
+}
