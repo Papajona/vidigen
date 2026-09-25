@@ -1377,7 +1377,14 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
                 try:
                     await persistence.create_asset(uid,None,'image',key,'image/jpeg',output.stat().st_size,{'source':'photo_enhance'})
                 except Exception:
-                    log.exception('Enhanced photo saved to R2 but asset metadata could not be recorded')
+                    # Never report a successful enhancement when its R2 object is not
+                    # represented in the asset ledger. Otherwise storage usage under-counts
+                    # the user's media and the same object becomes an orphaned quota bypass.
+                    try:
+                        await asyncio.to_thread(s3.delete_object, Bucket=bucket, Key=key)
+                    except Exception:
+                        log.exception('Enhanced photo metadata failed and R2 cleanup also failed')
+                    raise
             return {'status':'complete','output_url':f'{cdn}/{key}','feature':'photo_enhance'}
     except HTTPException:
         if daily.get('plan') == 'free':
