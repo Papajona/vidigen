@@ -1643,6 +1643,45 @@ async def r2_register(req: R2RegisterRequest, request: Request, user=Depends(aut
     }
 
 
+class ProjectPayload(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]{1,128}$')
+    name: str = Field(min_length=1, max_length=200)
+    timeline: dict[str, Any] | list[Any] = Field(default_factory=dict)
+
+@app.get('/api/projects')
+async def list_user_projects(request: Request, user=Depends(auth)):
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    if not uid: raise HTTPException(401,'Signed-in user required.')
+    return {'projects': await persistence.list_projects(uid)}
+
+@app.post('/api/projects')
+async def create_user_project(payload: ProjectPayload, request: Request, user=Depends(auth)):
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    if not uid: raise HTTPException(401,'Signed-in user required.')
+    project=await persistence.get_project(uid,payload.id)
+    if project: return project
+    created=await persistence.create_project(uid,payload.id,payload.name,payload.timeline)
+    if not created: raise HTTPException(503,'Project persistence is unavailable.')
+    return created
+
+@app.patch('/api/projects/{project_id}')
+async def update_user_project(project_id: str, payload: ProjectPayload, request: Request, user=Depends(auth)):
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    if not uid: raise HTTPException(401,'Signed-in user required.')
+    if project_id != payload.id: raise HTTPException(400,'Project ID mismatch.')
+    updated=await persistence.update_project(uid,project_id,payload.name,payload.timeline)
+    if not updated: raise HTTPException(404,'Project not found.')
+    return updated
+
+@app.delete('/api/projects/{project_id}')
+async def delete_user_project(project_id: str, request: Request, user=Depends(auth)):
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    if not uid: raise HTTPException(401,'Signed-in user required.')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',project_id): raise HTTPException(400,'Invalid project ID.')
+    if not await persistence.delete_project(uid,project_id): raise HTTPException(404,'Project not found.')
+    return {'deleted':True,'id':project_id}
+
 @app.get('/api/storage/me')
 async def storage_me(request: Request, user=Depends(auth)):
     uid = user.get('sub') if isinstance(user, dict) else None
