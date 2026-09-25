@@ -2438,3 +2438,57 @@ button,select,textarea,input{outline:none}
   .silkPrompt{min-height:150px!important;font-size:12px!important}
   .app:not(:has(.videoRow .clip)) .timelinePanel{height:50px!important}
 }
+
+/* V20 — Premium account access */
+.authBackdrop{background:
+  radial-gradient(720px 520px at 18% 18%,rgba(145,194,255,.10),transparent 62%),
+  radial-gradient(620px 460px at 86% 82%,rgba(183,162,255,.10),transparent 62%),
+  rgba(3,5,9,.82)!important;
+  backdrop-filter:blur(18px)!important;
+}
+.authShell{width:min(880px,94vw)!important;max-width:880px!important;min-height:560px!important;padding:0!important;overflow:hidden!important;display:grid!important;grid-template-columns:minmax(0,1.02fr) minmax(360px,.98fr)!important;border:1px solid rgba(255,255,255,.10)!important;border-radius:26px!important;background:linear-gradient(135deg,rgba(17,21,30,.96),rgba(8,11,17,.98))!important;box-shadow:0 32px 100px rgba(0,0,0,.55),0 0 0 1px rgba(183,162,255,.035) inset!important}
+.authBrandPanel{position:relative;padding:34px 36px 30px;display:flex;flex-direction:column;min-height:560px;background:
+  radial-gradient(480px 330px at 22% 12%,rgba(145,194,255,.10),transparent 68%),
+  linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.008) 62%);border-right:1px solid rgba(255,255,255,.075)}
+.authBrand{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:800;letter-spacing:.16em;color:#f5f7fb}
+.authLogo{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;font-size:13px;background:linear-gradient(135deg,#b7a2ff,#91c2ff);color:#080b10;box-shadow:0 8px 28px rgba(145,194,255,.18)}
+.authClose{position:absolute;top:20px;right:20px;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:rgba(255,255,255,.62);cursor:pointer}
+.authHero{margin-top:auto;padding:60px 0 30px;max-width:430px}
+.authEyebrow{font-size:9px;font-weight:800;letter-spacing:.15em;color:#aeb8d0}
+.authHero h1{margin:12px 0 12px;font-size:38px;line-height:1.04;letter-spacing:-.045em;color:#f6f7fb;font-weight:700}
+.authHero p{margin:0;max-width:370px;font-size:13px;line-height:1.7;color:rgba(244,245,248,.50)}
+.authFeatureList{display:grid;gap:10px;padding-top:8px}
+.authFeatureList span{display:flex;align-items:center;gap:10px;font-size:10px;color:rgba(244,245,248,.56)}
+.authFeatureList i{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-style:normal;color:#c8c2ff;background:rgba(183,162,255,.08);border:1px solid rgba(183,162,255,.10)}
+.authLegal{margin-top:auto;padding-top:22px;color:rgba(244,245,248,.25);font-size:8px;line-height:1.6}
+.authFormPanel{position:relative;padding:54px 52px 34px;display:flex;flex-direction:column;justify-content:center;background:rgba(8,11,16,.42)}
+.authMobileClose{display:none}
+.authFormIntro{margin-bottom:24px}
+.authFormIntro h2{margin:8px 0 6px;font-size:29px;letter-spacing:-.035em;color:#f5f7fb}
+.authFormIntro p{margin:0;color:rgba(244,245,248,.42);font-size:11px;line-height:1.6}
+.authModeTabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:18px;border:1px solid rgba(255,255,255,.065);border-radius:12px;background:rgba(255,255,255,.025)}
+.authModeTabs button{min-height:34px;border:0;border-radius:8px;background:transparent;color:rgba(244,245,248,.40);font-size:9px;font-weight:800;cursor:pointer}
+.authModeTabs button.active{color:#f5f7fb;background:rgba(255,255,255,.075);box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.authBenefits{grid-template-columns:1fr 1fr 1fr!important;gap:5px!important;margin:0 0 17px!important;padding:8px!important;background:transparent!important;border:0!important}
+.authBenefits span{font-size:8px;color:rgba(244,245,248,.42)}
+.authForm{margin-top:0!important}
+.authForm label{display:block!important;margin:0 0 7px!important;color:rgba(244,245,248,.48)!important;font-size:9px!important;font-weight:700;letter-spacing:.03em;text-transform:none!important}
+.authForm label+input{margin-bottom:15px}
+.authForm input{width:100%!important;min-height:48px!important;padding:0 14px!important;border-radius:12px!important;background:rgba(255,255,255,.035)!important;border:1px solid rgba(255,255,255,.085)!important;color:#f5f7fb!important;font-size:12px!important;outline:none}
+.authForm input::placeholder{color:rgba(244,245,248,.23)}
+.authForm input:focus{border-color:rgba(183,162,255,.42)!important;box-shadow:0 0 0 4px rgba(183,162,255,.06),0 10px 30px rgba(0,0,0,.12)!important}
+.authSubmit{width:100%!important;min-height:48px!important;margin-top:3px!important;border-radius:12px!important;font-size:11px!important;font-weight:800!important;box-shadow:0 10px 30px rgba(145,194,255,.12)}
+.authForgot{width:100%;margin-top:11px;border:0;background:transparent;color:rgba(244,245,248,.34);font-size:9px;cursor:pointer}
+.authBottomSwitch{margin:22px 0 0;text-align:center;color:rgba(244,245,248,.30);font-size:9px}
+.authBottomSwitch button{border:0;background:transparent;color:#c5bcff;font-weight:800;cursor:pointer;font-size:9px}
+.authConfirm{padding:30px 4px 8px!important}
+.authConfirmIcon{width:52px!important;height:52px!important;margin-bottom:15px!important;background:rgba(145,194,255,.08)!important;border-color:rgba(145,194,255,.16)!important;color:#a9d0ff!important}
+@media(max-width:760px){
+  .authShell{width:min(440px,94vw)!important;min-height:0!important;display:block!important;border-radius:22px!important}
+  .authBrandPanel{display:none!important}
+  .authFormPanel{padding:38px 24px 25px!important;min-height:500px}
+  .authMobileClose{display:block;position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:rgba(255,255,255,.62)}
+  .authFormIntro{padding-right:36px}
+  .authFormIntro h2{font-size:26px}
+  .authBenefits{grid-template-columns:1fr!important;gap:7px!important}
+}
