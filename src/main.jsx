@@ -537,7 +537,14 @@ async function removeBackground(){
      replaceClips([...clips,...out]);setActiveId(out[0].id);
      const rec={id:Date.now(),prompt,mode,model,jobId:out[0].jobId,timestamp:new Date().toISOString(),rating:0,tags:parsed.tags,success:true};
      if(validateMemoryRecord(rec))setHistory(h=>[rec,...h].slice(0,500));
-     setProjects(p=>[{id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))},...p].slice(0,50));
+     const savedProject={id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))};
+     setProjects(p=>[savedProject,...p].slice(0,50));
+     if(token&&online){
+       try{
+         const pr=await gatewayFetch(gateway,'/api/projects',{method:'POST',body:JSON.stringify({id:String(savedProject.id),name:savedProject.title,timeline:{mode:savedProject.mode,scenes:savedProject.scenes,clips:savedProject.clips}})},token);
+         if(!pr.ok) setStatus('Generation complete • local project saved; cloud project sync needs attention.');
+       }catch{}
+     }
      setStatus('Complete • '+out.length+' shot'+(out.length>1?'s':'')+' added to timeline.');setProgress(100);
    }catch(e){setStatus(e?.message||'Generation failed.')}
    finally{setGenerating(false)}
