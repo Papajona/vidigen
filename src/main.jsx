@@ -602,6 +602,7 @@ async function removeBackground(){
    <nav className="rail">
   <div className="railGroup">
     {NAV.map(([n,icon])=><button key={n} className={`railItem ${nav===n?'active':''}`} onClick={()=>{setNav(n);setMobileInspectorOpen(true)}}><strong>{icon}</strong><span>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</span></button>)}
+    <button className={`railItem mobileProjectItem ${nav==='Projects'?'active':''}`} onClick={()=>{setNav('Projects');setMobileInspectorOpen(true)}} aria-label="Open projects"><strong>□</strong><span>Projects</span></button>
   </div>
   <div className="railSpacer"/>
   <div className="railUtilities">
