@@ -21,6 +21,7 @@ create table if not exists public.generation_jobs (
 );
 create unique index if not exists generation_jobs_user_idempotency_key_idx
   on public.generation_jobs(user_id, idempotency_key) where idempotency_key is not null;
+drop index if exists public.generation_jobs_user_id_idempotency_unique;
 create table if not exists public.brain_feedback (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
   generation_job_id uuid references public.generation_jobs(id) on delete set null, rating smallint check (rating between 0 and 5),
@@ -46,8 +47,10 @@ create table if not exists public.utility_jobs (
   completed_at timestamptz
 );
 alter table public.utility_jobs enable row level security;
-create policy "own utility jobs" on public.utility_jobs for select using (auth.uid()=user_id);
+create policy "own utility jobs" on public.utility_jobs for select to authenticated using ((select auth.uid())=user_id);
 revoke all on table public.utility_jobs from anon, authenticated;
+create index if not exists utility_jobs_user_id_idx on public.utility_jobs(user_id);
+create index if not exists utility_jobs_output_asset_id_idx on public.utility_jobs(output_asset_id);
 
 alter table public.projects enable row level security; alter table public.assets enable row level security;
 alter table public.generation_jobs enable row level security; alter table public.brain_feedback enable row level security; alter table public.brain_datasets enable row level security;
