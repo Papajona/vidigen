@@ -202,9 +202,29 @@ class ReplicateProvider(BaseGenerationProvider):
         if self.token and self.model:
             self.capabilities.update({"video", "image-to-video", "video-to-video"})
 
+    def _refresh_capabilities(self) -> None:
+        # Re-read environment-backed model configuration so tests, secret rotation,
+        # and long-lived gateway processes do not retain stale capability metadata.
+        token = os.getenv("REPLICATE_API_TOKEN", "").strip()
+        video_model = os.getenv("REPLICATE_MODEL", "").strip()
+        image_model = os.getenv("REPLICATE_IMAGE_MODEL", "").strip()
+        self.token = token
+        self.model = video_model
+        self.image_model = image_model or "black-forest-labs/flux-schnell"
+        self.capabilities = set()
+        if token and image_model:
+            self.capabilities.add("image")
+        if token and video_model:
+            self.capabilities.update({"video", "image-to-video", "video-to-video"})
+
     def configured(self) -> bool:
         # Image and video models are configured independently.
+        self._refresh_capabilities()
         return bool(self.token and (self.model or os.getenv("REPLICATE_IMAGE_MODEL", "").strip()))
+
+    def supports(self, capability: str) -> bool:
+        self._refresh_capabilities()
+        return super().supports(capability)
 
     def model_for(self, payload: dict) -> str:
         if _operation_capability(payload.get("mode")) == "image":
