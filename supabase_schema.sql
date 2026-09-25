@@ -348,6 +348,26 @@ grant execute on function public.consume_credits_atomic(uuid,integer) to service
 grant execute on function public.refund_credits_atomic(uuid,integer) to service_role;
 grant execute on function public.grant_subscription_credits_atomic(uuid,integer,integer) to service_role;
 
+-- Paystack webhook idempotency: atomically claim a pending payment reference before granting credits.
+create or replace function public.claim_paystack_payment_success(p_reference text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if p_reference is null or btrim(p_reference) = '' then
+    return false;
+  end if;
+  update public.payments
+     set status = 'success', verified_at = now(), updated_at = now()
+   where reference = p_reference and status <> 'success';
+  return found;
+end;
+$;
+revoke all on function public.claim_paystack_payment_success(text) from public, anon, authenticated;
+grant execute on function public.claim_paystack_payment_success(text) to service_role;
+
 -- Free-plan daily entitlements: five avatar generations and five photo enhancements per UTC day.
 create table if not exists public.daily_feature_usage (
   user_id uuid not null references auth.users(id) on delete cascade,
