@@ -185,21 +185,26 @@ class BaseGenerationProvider:
 
 class ReplicateProvider(BaseGenerationProvider):
     name = "replicate"
-    capabilities = {"video", "image", "image-to-video", "video-to-video"}
 
     def __init__(self):
-        self.token = os.getenv("REPLICATE_API_TOKEN", "")
-        self.model = os.getenv("REPLICATE_MODEL", "")
-        self.image_model = os.getenv("REPLICATE_IMAGE_MODEL", "black-forest-labs/flux-schnell")
+        self.token = os.getenv("REPLICATE_API_TOKEN", "").strip()
+        self.model = os.getenv("REPLICATE_MODEL", "").strip()
+        image_model_env = os.getenv("REPLICATE_IMAGE_MODEL", "").strip()
+        self.image_model = image_model_env or "black-forest-labs/flux-schnell"
+
+        # Capabilities must reflect the models that are actually configured.
+        # An image-only Replicate deployment must not advertise video capability,
+        # otherwise Auto Router can select Replicate for video and only fail later
+        # when it discovers there is no video model to submit.
+        self.capabilities = set()
+        if self.token and image_model_env:
+            self.capabilities.add("image")
+        if self.token and self.model:
+            self.capabilities.update({"video", "image-to-video", "video-to-video"})
 
     def configured(self) -> bool:
-        # Image generation and video generation have separate model settings.
-        # Requiring REPLICATE_MODEL here incorrectly marked Replicate as unavailable
-        # for Text → Image when only REPLICATE_IMAGE_MODEL was configured.
-        return bool(
-            os.getenv("REPLICATE_API_TOKEN", "")
-            and (os.getenv("REPLICATE_MODEL", "") or os.getenv("REPLICATE_IMAGE_MODEL", ""))
-        )
+        # Image and video models are configured independently.
+        return bool(self.token and (self.model or os.getenv("REPLICATE_IMAGE_MODEL", "").strip()))
 
     def model_for(self, payload: dict) -> str:
         if _operation_capability(payload.get("mode")) == "image":
