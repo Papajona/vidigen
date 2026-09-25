@@ -538,7 +538,7 @@ async function removeBackground(){
      replaceClips([...clips,...out]);setActiveId(out[0].id);
      const rec={id:Date.now(),prompt,mode,model,jobId:out[0].jobId,timestamp:new Date().toISOString(),rating:0,tags:parsed.tags,success:true};
      if(validateMemoryRecord(rec))setHistory(h=>[rec,...h].slice(0,500));
-     const savedProject={id:Date.now(),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))};
+     const savedProject={id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),title:prompt.slice(0,48),mode,date:new Date().toLocaleDateString(),scenes:out.length,clips:out.map(x=>({...x}))};
      setProjects(p=>[savedProject,...p].slice(0,50));
      if(token&&online){
        try{
