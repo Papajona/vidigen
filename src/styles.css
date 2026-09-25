@@ -2499,6 +2499,20 @@ button,select,textarea,input{outline:none}
 .mobileInspectorClose{display:none}
 .mobileInspectorClose.standalone{display:none}
 .authTopButton{display:inline-flex!important}
+.authLaunchButton{display:inline-flex!important;align-items:center;justify-content:center;min-height:34px;padding:8px 13px!important;border-radius:10px!important;background:var(--accent)!important;color:#fff!important;border:1px solid rgba(255,255,255,.12)!important;font-size:11px!important;font-weight:800!important;white-space:nowrap!important;box-shadow:0 8px 24px rgba(79,124,255,.20)!important;z-index:120!important;visibility:visible!important;opacity:1!important}
+.authLaunchButton:hover{filter:brightness(1.08)!important}
+.authBackdrop{position:fixed!important;inset:0!important;z-index:99999!important;display:grid!important;place-items:center!important;visibility:visible!important;opacity:1!important}
+.authShell{position:relative!important;z-index:100000!important;visibility:visible!important;opacity:1!important}
+@media(max-width:900px){
+  .topActions .authLaunchButton{display:inline-flex!important;visibility:visible!important;opacity:1!important;min-width:145px!important}
+}
+@media(max-width:700px){
+  .topActions{gap:6px!important;min-width:0!important}
+  .topActions .authLaunchButton{display:inline-flex!important;min-width:0!important;width:auto!important;max-width:calc(100vw - 105px)!important;padding:7px 10px!important;font-size:10px!important}
+  .topActions .accountMenuWrap{display:inline-flex!important}
+  .authBackdrop{padding:10px!important;overflow:auto!important}
+  .authShell{width:min(440px,calc(100vw - 20px))!important;max-height:calc(100vh - 20px)!important;overflow:auto!important}
+}
 @media(max-width:900px){
   .inspector{position:fixed!important;right:0!important;top:56px!important;bottom:40px!important;
     width:min(390px,calc(100vw - 18px))!important;z-index:30!important;
