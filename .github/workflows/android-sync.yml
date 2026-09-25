@@ -53,7 +53,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f android/app/src/main/assets/public android/app/src/main/assets/capacitor.config.json
           git commit -m "chore: sync Android web assets [skip ci]"
-          git push
+          # Main can move while this build is running (frontend/gateway commits are frequent).
+          # Rebase the generated-assets commit onto the newest main before pushing, and retry
+          # if another concurrent push wins the race.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "Could not push synchronized Android assets after 3 attempts."
+          exit 1
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
