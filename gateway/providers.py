@@ -193,7 +193,13 @@ class ReplicateProvider(BaseGenerationProvider):
         self.image_model = os.getenv("REPLICATE_IMAGE_MODEL", "black-forest-labs/flux-schnell")
 
     def configured(self) -> bool:
-        return bool(os.getenv("REPLICATE_API_TOKEN", "") and os.getenv("REPLICATE_MODEL", ""))
+        # Image generation and video generation have separate model settings.
+        # Requiring REPLICATE_MODEL here incorrectly marked Replicate as unavailable
+        # for Text → Image when only REPLICATE_IMAGE_MODEL was configured.
+        return bool(
+            os.getenv("REPLICATE_API_TOKEN", "")
+            and (os.getenv("REPLICATE_MODEL", "") or os.getenv("REPLICATE_IMAGE_MODEL", ""))
+        )
 
     def model_for(self, payload: dict) -> str:
         if _operation_capability(payload.get("mode")) == "image":
