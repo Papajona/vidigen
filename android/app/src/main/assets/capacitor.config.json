@@ -5,6 +5,6 @@
 	"bundledWebRuntime": false,
 	"android": {
 		"allowMixedContent": false,
-		"backgroundColor": "#000000"
+		"backgroundColor": "#0d0e13"
 	}
 }
