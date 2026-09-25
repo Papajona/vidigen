@@ -25,7 +25,7 @@ if (SENTRY_DSN) {
 
 const BUILD_HEALTH_CHECK='cloud-run-direct';
 const NAV=[['Create','✦'],['Media','▧'],['Effects','◌'],['Captions','CC']];
-const MODES=['Text → Video','Image → Video','Video → Video','Text → Image'];
+const MODES=['Text → Video','Image → Video','Video → Video','Text → Image','Avatar'];
 const CAMERA_MOVES=['Auto (let the model choose)','Static shot','Slow push in','Pull out','Pan left','Pan right','Tilt up','Tilt down','Orbit around subject','Handheld','Aerial / drone','Dolly tracking shot'];
 const RATIOS=['16:9','9:16','1:1','4:5','21:9'];
 const DURATIONS=['4s','5s','8s','10s','15s','30s','60s'];
@@ -451,7 +451,7 @@ async function removeBackground(){
  async function improvePrompt(){setStatus('Optimizing creative direction…');try{if(geminiConfigured(gateway)){setPrompt(await improvePromptWithGemini(prompt,mode,gateway,token));}else setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus('Creative brief optimized.')}catch(e){setPrompt(buildLocalPrompt(prompt,profile,mode));setStatus(`Local optimization used: ${e.message}`)}}
  function makeScenes(activeProfile=brainProfile){
    const total=Math.max(1,parseInt(duration)||5);
-   const imageMode=mode==='Text → Image';
+   const imageMode=mode==='Text → Image'||mode==='Avatar';
    const sourceTransform=mode==='Image → Video'||mode==='Video → Video';
    const count=imageMode||sourceTransform?1:(total>=30?5:total>=15?3:Math.max(1,Math.ceil(total/8)));
    const each=imageMode?5:Math.max(2,Math.round((total/count)*10)/10);
@@ -471,7 +471,7 @@ async function removeBackground(){
  async function generate(){
    if(!token){setShowAuth(true);setStatus('Sign in or create a Vidigen account to generate.');return}
    if(!online){setStatus('Gateway offline — connect a generation provider first.');return}
-   const generationFeature = mode==='Text → Image' ? featureHealth?.generation?.text_to_image : mode==='Image → Video' ? featureHealth?.generation?.image_to_video : mode==='Video → Video' ? featureHealth?.generation?.video_to_video : featureHealth?.generation?.text_to_video;
+   const generationFeature = (mode==='Text → Image'||mode==='Avatar') ? featureHealth?.generation?.text_to_image : mode==='Image → Video' ? featureHealth?.generation?.image_to_video : mode==='Video → Video' ? featureHealth?.generation?.video_to_video : featureHealth?.generation?.text_to_video;
    if(featureHealth && generationFeature===false){setStatus('No configured provider currently supports '+mode+'. Check Settings → Advanced → Feature health.');return}
    const requiredSourceType=generationSourceTypeForMode();
    if(requiredSourceType==='image' && generationSource?.type && generationSource.type!=='image'){setStatus('Choose an image source for Image → Video.');return}
@@ -645,7 +645,7 @@ async function removeBackground(){
  const isImageMedia=(c)=>{if(!c)return false;if(c.mediaType==='image')return true;if(c.mediaType==='video')return false;return String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||''));};
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
  const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability)).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
- const featureReadyForMode=featureHealth ? (mode==='Text → Image' ? featureHealth.generation?.text_to_image === true : mode==='Image → Video' ? featureHealth.generation?.image_to_video === true : mode==='Video → Video' ? featureHealth.generation?.video_to_video === true : featureHealth.generation?.text_to_video === true) : false;
+ const featureReadyForMode=featureHealth ? ((mode==='Text → Image'||mode==='Avatar') ? featureHealth.generation?.text_to_image === true : mode==='Image → Video' ? featureHealth.generation?.image_to_video === true : mode==='Video → Video' ? featureHealth.generation?.video_to_video === true : featureHealth.generation?.text_to_video === true) : false;
  const generationStateLabel=!token ? 'Sign in' : featureHealth ? (featureReadyForMode?'Ready':'Unavailable') : (online?'Checking…':'Offline');
  const availabilityDotClass=!featureHealth ? 'okText' : featureReadyForMode?'okText':'badText';
  const newProject=()=>{if(generating)return;clearGenerationSource();setClips([]);setActiveId(null);setCaptions([]);setAudio(null);setAnalysis(null);setOverlay({text:'',size:42,x:50,y:82,bold:true});setStatus('New project ready.');setNav('Create')};
@@ -774,7 +774,7 @@ async function removeBackground(){
           }
         </div>)}
       </div>
-      <div className="hint">Free plan: 5 photo enhancements per day, with 500 MB storage. Video generation is available through purchased credits or a paid plan. Avatar generation is not currently available in this build.</div>
+      <div className="hint">Free plan: 5 photo enhancements and 5 avatar generations per day, with 500 MB storage. Video generation is available through purchased credits or a paid plan.</div>
       <div className="analysis"><b>Video credits</b><span>150 credits • GHS 30.00</span><button onClick={async()=>{try{const r=await gatewayFetch(gateway,'/api/billing/checkout/credits',{method:'POST',body:JSON.stringify({credits:150})},token);const d=await r.json();if(!d.authorization_url)throw new Error('No Paystack checkout URL returned.');window.location.href=d.authorization_url}catch(e){setStatus(e.message)}}}>Buy 150 credits</button></div>
       <div className="analysis"><b>Credit balance</b><span>{billing?.wallet?.balance??'—'} credits remaining</span></div>
       <div className="paymentNote"><span>Payments are processed securely through Paystack.</span></div>
