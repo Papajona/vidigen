@@ -2615,3 +2615,23 @@ button,select,textarea,input{outline:none}
     max-height:calc(100vh - 20px)!important;overflow:auto!important;
   }
 }
+
+/* Functional Edit inspector */
+.effectsActions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.effectsActions button{min-height:34px}
+.effectsActions .danger{margin-left:auto}
+.effectsControlGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.effectsControlGrid label,.effectsInline label{display:grid;gap:5px;font-size:10px;color:var(--muted)}
+.effectsControlGrid input[type=range]{width:100%}
+.effectsControlGrid label span{font-size:9px;color:var(--text);font-weight:700}
+.effectsInline{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.effectsInline input,.effectsPanel textarea,.effectsPanel select,.effectsPanel input[type=text],.effectsPanel input[type=number]{width:100%;box-sizing:border-box}
+.effectsPanel .sectionCard{margin-bottom:10px}
+.effectsPanel .sectionCard>p{margin:5px 0;color:var(--muted);font-size:11px;line-height:1.4}
+.effectsPanel label{display:block;margin-top:9px;font-size:10px;color:var(--muted)}
+.effectsPanel label>input,.effectsPanel label>select{margin-top:5px}
+@media(max-width:700px){
+  .effectsControlGrid{grid-template-columns:1fr}
+  .effectsInline{grid-template-columns:1fr 1fr 1fr}
+  .effectsActions button{flex:1 1 auto}
+}
