@@ -534,7 +534,7 @@ async function removeBackground(){
      setCaptions(data.segments||[]);setStatus(String((data.segments||[]).length)+' caption segments created.')
    }catch(e){setStatus(e.message)}finally{setCaptioning(false)}
  }
- function importAudio(file){
+ async function importAudio(file){
    if(!file)return;
    if(!token){setShowAuth(true);setStatus('Sign in to save audio to your project.');return}
    if(!file.type.startsWith('audio/')){setStatus('Choose an audio file.');return}
