@@ -1,0 +1,57 @@
+name: Browser runtime diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/browser-runtime-diagnostic.yml"
+  workflow_dispatch: {}
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Test production page
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage();
+            const consoleErrors = [];
+            const pageErrors = [];
+            const failed = [];
+            page.on('console', msg => {
+              if (msg.type() === 'error') consoleErrors.push(msg.text());
+            });
+            page.on('pageerror', err => pageErrors.push(String(err.stack || err)));
+            page.on('requestfailed', req => failed.push(req.url() + ' :: ' + (req.failure()?.errorText || 'unknown')));
+            const response = await page.goto('https://www.vidigen.online/?browser_diag=' + Date.now(), {waitUntil:'networkidle', timeout:60000});
+            console.log('HTTP', response && response.status());
+            console.log('URL', page.url());
+            console.log('TITLE', await page.title());
+            console.log('BODY_TEXT_LENGTH', (await page.locator('body').innerText().catch(()=>'' )).length);
+            console.log('ROOT_HTML_LENGTH', (await page.locator('#root').innerHTML().catch(()=>'' )).length);
+            console.log('ROOT_OUTER', (await page.locator('#root').evaluate(el => el.outerHTML).catch(()=>'' )).slice(0,2000));
+            console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
+            console.log('PAGE_ERRORS', JSON.stringify(pageErrors));
+            console.log('FAILED_REQUESTS', JSON.stringify(failed.slice(0,50)));
+            await page.screenshot({path:'/tmp/vidigen.png', fullPage:true});
+            if ((await page.locator('#root').innerHTML().catch(()=>'' )).trim() === '') {
+              throw new Error('ROOT IS EMPTY');
+            }
+            if (pageErrors.length || consoleErrors.length) {
+              throw new Error('Browser runtime errors detected');
+            }
+            await browser.close();
+          })().catch(err => { console.error(err.stack || err); process.exit(1); });
+          NODE
