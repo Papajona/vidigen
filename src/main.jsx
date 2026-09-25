@@ -606,10 +606,11 @@ function App(){
     <div className="transport"><button onClick={()=>{if(video.current)video.current.currentTime=0}}>⏮</button><button onClick={()=>video.current?.paused?video.current?.play():video.current?.pause()}>▶/Ⅱ</button><button onClick={()=>{if(video.current)video.current.currentTime=video.current.duration||0}}>⏭</button><div className="scrub" onClick={e=>{if(!video.current?.duration)return;const t=(e.nativeEvent.offsetX/e.currentTarget.clientWidth)*video.current.duration;video.current.currentTime=t;setPreviewTime(t)}}><div style={{width:`${video.current?.duration?((previewTime/video.current.duration)*100):0}%`}}/></div><span>{status}{generating?` • ${progress}%`:''}</span></div>
    </main>
    <aside className={`inspector ${mobileInspectorOpen?'mobileOpen':''}`}>
+    <button className="mobileInspectorClose standalone" type="button" aria-label="Close panel" onClick={()=>setMobileInspectorOpen(false)}>×</button>
     {nav==='Create'&&<>
   <div className="inspectorTop">
     <div><b>{nav==='Create'?'Create':nav==='Media'?'Assets':nav==='Effects'?'Edit':nav==='Captions'?'Captions':nav==='Projects'?'Projects':'Credits'}</b><small className="modalSub">Give Vidigen the tools you need without leaving the studio.</small></div>
-    <div className="inspectorTopActions"><span className="tinyBadge">{nav==='Create'?'AI DIRECTOR':'STUDIO'}</span><button className="mobileInspectorClose" type="button" aria-label="Close panel" onClick={()=>setMobileInspectorOpen(false)}>×</button></div>
+    <div className="inspectorTopActions"><span className="tinyBadge">{nav==='Create'?'AI DIRECTOR':'STUDIO'}</span></div>
   </div>
   <div className="createStep"><span>01</span><div><label className="sectionLabel">What are you making?</label><small>Pick one. Vidigen handles the rest.</small></div></div>
   <div className="modeGrid silkModes">
