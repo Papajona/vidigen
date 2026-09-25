@@ -1572,7 +1572,13 @@ async def r2_register(req: R2RegisterRequest, request: Request, user=Depends(aut
     cdn_base = os.getenv('R2_PUBLIC_BASE_URL', '').rstrip('/')
     if not all((endpoint, access_key, secret_key, bucket, cdn_base)):
         raise HTTPException(501, 'Cloudflare R2 is not fully configured on this gateway.')
-    safe_key = _scoped_r2_key(uid, req.object_key)
+    # The presign endpoint returns an already caller-scoped key. Accept that exact
+    # key on registration; only prefix unscoped client keys. This prevents the
+    # users/<uid>/users/<uid>/... double-prefix dead end while still preventing
+    # cross-account object registration.
+    requested_key = req.object_key.lstrip('/')
+    prefix = f'users/{uid}/'
+    safe_key = requested_key if requested_key.startswith(prefix) else _scoped_r2_key(uid, requested_key)
     try:
         import boto3
         from botocore.config import Config as BotoConfig
