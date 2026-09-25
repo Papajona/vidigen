@@ -1666,7 +1666,7 @@ async def r2_register(req: R2RegisterRequest, request: Request, user=Depends(aut
 
 class ProjectPayload(BaseModel):
     model_config=ConfigDict(extra='forbid')
-    id: str = Field(min_length=36, max_length=36, pattern=r'^[0-9a-fA-F-]{36}
+    id: str = Field(min_length=36, max_length=36)
     name: str = Field(min_length=1, max_length=200)
     timeline: dict[str, Any] | list[Any] = Field(default_factory=dict)
 
@@ -1678,6 +1678,10 @@ async def list_user_projects(request: Request, user=Depends(auth)):
 
 @app.post('/api/projects')
 async def create_user_project(payload: ProjectPayload, request: Request, user=Depends(auth)):
+    try:
+        uuid.UUID(payload.id)
+    except ValueError:
+        raise HTTPException(422,'Project ID must be a valid UUID.')
     uid=(user or {}).get('sub') if isinstance(user,dict) else None
     if not uid: raise HTTPException(401,'Signed-in user required.')
     project=await persistence.get_project(uid,payload.id)
