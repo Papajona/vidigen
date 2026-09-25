@@ -169,7 +169,7 @@ function App(){
  const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]));
  const [activeId,setActiveId]=useState(()=>read('vidigen_active_clip',null));
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
- const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[mobileInspectorOpen,setMobileInspectorOpen]=useState(false);
+ const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[mobileInspectorOpen,setMobileInspectorOpen]=useState(()=>typeof window!=='undefined'&&window.matchMedia?.('(max-width: 700px)').matches);
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
  const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[enhancingPhoto,setEnhancingPhoto]=useState(false),[croppingPhoto,setCroppingPhoto]=useState(false),[cropAspect,setCropAspect]=useState('1:1'),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
  const [generationSource,setGenerationSource]=useState(null);
