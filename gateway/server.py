@@ -1374,6 +1374,11 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
             s3=boto3.client('s3',endpoint_url=endpoint,aws_access_key_id=access,aws_secret_access_key=secret,config=BotoConfig(signature_version='s3v4'),region_name='auto')
             key=f'users/{uid}/enhanced/{uuid.uuid4().hex}.jpg'
             s3.upload_file(str(output),bucket,key,ExtraArgs={'ContentType':'image/jpeg'})
+            if persistence.enabled():
+                try:
+                    await persistence.create_asset(uid,None,'image',key,'image/jpeg',output.stat().st_size,{'source':'photo_enhance'})
+                except Exception:
+                    log.exception('Enhanced photo saved to R2 but asset metadata could not be recorded')
             return {'status':'complete','output_url':f'{cdn}/{key}','feature':'photo_enhance'}
     except HTTPException:
         if daily.get('plan') == 'free':
@@ -1622,6 +1627,14 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
             s3.upload_file(output_path, bucket, object_key, ExtraArgs={'ContentType': 'video/mp4'})
         except Exception as e:
             raise HTTPException(502, f'Could not upload reframed video: {e}')
+        if persistence.enabled():
+            try:
+                await persistence.create_asset(
+                    user.get('sub'),None,'video',object_key,'video/mp4',
+                    Path(output_path).stat().st_size,{'source':'auto_reframe','ratio':f'{target_aspect_w}:{target_aspect_h}'}
+                )
+            except Exception:
+                log.exception('Reframed video saved to R2 but asset metadata could not be recorded')
 
         return {
             'output_url': f'{cdn_base}/{object_key}',
@@ -2015,6 +2028,14 @@ async def _persist_provider_output(output_url: str, uid: str | None, *, image: b
         )
         key=f'users/{uid}/generations/{uuid.uuid4().hex}{suffix}'
         await asyncio.to_thread(s3.upload_file, tmp_path, bucket, key, ExtraArgs={'ContentType':content_type})
+        if persistence.enabled():
+            try:
+                await persistence.create_asset(
+                    uid, None, 'image' if image else 'video', key, content_type, total,
+                    {'source':'provider_output'}
+                )
+            except Exception:
+                log.exception('Provider output persisted to R2 but asset metadata could not be recorded')
         return f'{public_base}/{key}'
     except Exception as exc:
         log.warning('Could not persist provider output to R2; using provider URL: %s', exc)
