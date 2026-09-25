@@ -102,47 +102,69 @@ export default function CustomerAuthScreen({onAuthenticated, onClose}) {
     finally{setBusy(false)}
   }
 
-  return <div className="modalBack">
-    <div className="modal authModal">
-      <div className="modalHead">
-        <div>
-          <b>{mode==='signup'?'Create your Vidigen account':'Welcome back'}</b>
-          <small className="modalSub">{mode==='signup'?'Create once, then keep your projects and credits in one account.':'Sign in to generate, save projects and use your account credits.'}</small>
+  return <div className="modalBack authBackdrop">
+    <div className="modal authModal authShell">
+      <aside className="authBrandPanel">
+        <button className="authClose" type="button" aria-label="Close" onClick={onClose}>×</button>
+        <div className="authBrand">
+          <span className="authLogo">V</span>
+          <span>VIDIGEN</span>
         </div>
-        <button className="secondary" type="button" aria-label="Close account dialog" onClick={onClose}>×</button>
-      </div>
+        <div className="authHero">
+          <span className="authEyebrow">AI CREATIVE STUDIO</span>
+          <h1>{mode==='signup'?'Turn ideas into finished scenes.':'Welcome back to your studio.'}</h1>
+          <p>{mode==='signup'?'Create once and keep your projects, generations and credits together.':'Pick up where you left off and continue creating.'}</p>
+        </div>
+        <div className="authFeatureList">
+          <span><i>✦</i> Cinematic image &amp; video generation</span>
+          <span><i>◌</i> Projects, assets &amp; timeline editing</span>
+          <span><i>↗</i> Your credits stay with your account</span>
+        </div>
+        <small className="authLegal">By continuing, you agree to use Vidigen responsibly and keep your account secure.</small>
+      </aside>
+      <section className="authFormPanel">
+        <button className="authMobileClose" type="button" aria-label="Close" onClick={onClose}>×</button>
+        <div className="authFormIntro">
+          <span className="authEyebrow">{mode==='signup'?'GET STARTED':'SIGN IN'}</span>
+          <h2>{mode==='signup'?'Create your account':'Sign in'}</h2>
+          <p>{mode==='signup'?'A simple account for your Vidigen workspace.':'Access your projects, generations and credits.'}</p>
+        </div>
 
-      {mode==='signup'&&!awaitingConfirmation&&<div className="authBenefits">
-        <span>✓ 500 MB storage</span>
-        <span>✓ Account-scoped projects</span>
-        <span>✓ Credits &amp; billing</span>
-      </div>}
+        <div className="authModeTabs" role="tablist" aria-label="Account access">
+          <button type="button" className={mode==='signin'?'active':''} onClick={()=>switchMode('signin')}>Sign in</button>
+          <button type="button" className={mode==='signup'?'active':''} onClick={()=>switchMode('signup')}>Create account</button>
+        </div>
 
-      {awaitingConfirmation
-        ? <div className="authConfirm">
-            <div className="authConfirmIcon">✓</div>
-            <b>Check your email</b>
-            <p>{info||'We sent a confirmation link to your email address.'}</p>
-            <div className="authActions">
-              <button className="primary" type="button" onClick={()=>switchMode('signin')}>Continue to sign in</button>
-              <button className="secondary" type="button" disabled={busy} onClick={resendConfirmation}>{busy?'Sending…':'Resend confirmation'}</button>
+        {mode==='signup'&&!awaitingConfirmation&&<div className="authBenefits">
+          <span>✓ 500 MB storage</span>
+          <span>✓ Projects &amp; generations</span>
+          <span>✓ Credits &amp; billing</span>
+        </div>}
+
+        {awaitingConfirmation
+          ? <div className="authConfirm">
+              <div className="authConfirmIcon">✓</div>
+              <b>Check your inbox</b>
+              <p>{info||'We sent a confirmation link to your email address.'}</p>
+              <div className="authActions">
+                <button className="primary" type="button" onClick={()=>switchMode('signin')}>Continue to sign in</button>
+                <button className="secondary" type="button" disabled={busy} onClick={resendConfirmation}>{busy?'Sending…':'Resend email'}</button>
+              </div>
             </div>
-          </div>
-        : <form onSubmit={handleEmailAuth}>
-            <label>Email</label>
-            <input type="email" required autoComplete="email" inputMode="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
-            <label>Password</label>
-            <input type="password" required minLength={8} autoComplete={mode==='signup'?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters"/>
-            {error&&<p className="authError" role="alert">{error}</p>}
-            {info&&<p className="authInfo" role="status">{info}</p>}
-            <button className="primary" type="submit" disabled={busy}>{busy?'Please wait…':mode==='signup'?'Create account':'Sign in'}</button>
-            {mode==='signin'&&<button className="secondary authLinkButton" type="button" disabled={busy} onClick={sendRecovery}>Forgot password?</button>}
-          </form>
-      }
+          : <form onSubmit={handleEmailAuth} className="authForm">
+              <label htmlFor="vidigen-email">Email address</label>
+              <input id="vidigen-email" type="email" required autoComplete="email" inputMode="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
+              <label htmlFor="vidigen-password">Password</label>
+              <input id="vidigen-password" type="password" required minLength={8} autoComplete={mode==='signup'?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters"/>
+              {error&&<p className="authError" role="alert">{error}</p>}
+              {info&&<p className="authInfo" role="status">{info}</p>}
+              <button className="primary authSubmit" type="submit" disabled={busy}>{busy?'Please wait…':mode==='signup'?'Create account':'Sign in to Vidigen'}</button>
+              {mode==='signin'&&<button className="authForgot" type="button" disabled={busy} onClick={sendRecovery}>Forgot your password?</button>}
+            </form>
+        }
 
-      {!awaitingConfirmation&&<button type="button" className="authSwitch" onClick={()=>switchMode(mode==='signup'?'signin':'signup')}>
-        {mode==='signup'?'Already have an account? Sign in':"New to Vidigen? Create an account"}
-      </button>}
+        {!awaitingConfirmation&&<p className="authBottomSwitch">{mode==='signup'?'Already have an account?':'New to Vidigen?'} <button type="button" onClick={()=>switchMode(mode==='signup'?'signin':'signup')}>{mode==='signup'?'Sign in':'Create an account'}</button></p>}
+      </section>
     </div>
   </div>;
 }
