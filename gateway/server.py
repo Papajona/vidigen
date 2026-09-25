@@ -250,7 +250,7 @@ class Generate(BaseModel):
  model_config=ConfigDict(extra='forbid')
  prompt:str=Field(min_length=1,max_length=MAX_PROMPT)
  mode:str=Field(default='Text → Video',max_length=64)
- model:str|None=Field(default=None,max_length=128,pattern=r'^[A-Za-z0-9_.:/-]{1,128}
+ model:str|None=Field(default=None,max_length=128)
  duration:str=Field(default='5s',pattern=r'^[1-9][0-9]?s$')
  scene:dict[str,Any]=Field(default_factory=dict)
  sourceUrl:str|None=Field(default=None,max_length=2048)
