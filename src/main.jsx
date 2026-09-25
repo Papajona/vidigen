@@ -263,7 +263,7 @@ function App(){
  }
 })();return()=>{alive=false}},[gateway,token]);
  useEffect(()=>{if(!token||!online){setFeatureHealth(null);return}let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/features/health',{},token);if(alive)setFeatureHealth(await r.json())}catch{if(alive)setFeatureHealth(null)}})();return()=>{alive=false}},[token,online,gateway]);
- useEffect(()=>{if(nav!=='Billing'||!online)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token))}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
+ useEffect(()=>{if(nav!=='Billing'||!online||!token)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token))}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
  useEffect(()=>{if(!token||!online)return;let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/brain/profile',{},token);if(alive)setBrainProfile(await r.json())}catch{if(alive)setBrainProfile({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0})}})();return()=>{alive=false}},[token,online,gateway,history.length]);
  function snapshot(){setUndoStack(s=>[...s,clips].slice(-30));setRedoStack([])}
  function replaceClips(next){snapshot();setClips(next)}
@@ -589,7 +589,7 @@ function App(){
   <div className="railSpacer"/>
   <div className="railUtilities">
     <button className={`railItem ${nav==='Projects'?'active':''}`} onClick={()=>{setNav('Projects');setMobileInspectorOpen(true)}}><strong>□</strong><span>Projects</span></button>
-    <button className={`railItem ${nav==='Billing'?'active':''}`} onClick={()=>{setNav('Billing');setMobileInspectorOpen(true)}}><strong>¤</strong><span>Credits</span></button>
+    <button className={`railItem ${nav==='Billing'?'active':''}`} onClick={()=>{if(!token){setStatus('Sign in to view credits and billing.');setShowAuth(true);return}setNav('Billing');setMobileInspectorOpen(true)}}><strong>¤</strong><span>Credits</span></button>
     <button className="railItem" onClick={()=>setShowSettings(true)}><strong>⚙</strong><span>Settings</span></button>
   </div>
 </nav>
@@ -744,7 +744,7 @@ function App(){
       <div className="settingsSectionHead"><div><b>Account &amp; credits</b><span>{token?'Signed in':'Sign in to generate and keep account-backed history and credits.'}</span></div></div>
       {supabaseConfigured&&token&&<button onClick={signOut}>Sign out</button>}
       {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
-      <button onClick={()=>{setShowSettings(false);setNav('Billing')}}>Open Credits &amp; Billing</button>
+      <button onClick={()=>{if(!token){setShowSettings(false);setShowAuth(true);setStatus('Sign in to view credits and billing.');return}setShowSettings(false);setNav('Billing');setMobileInspectorOpen(true)}}>Open Credits &amp; Billing</button>
     </section>
   </div>
   <details className="settingsAdvanced">
