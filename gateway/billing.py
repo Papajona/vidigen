@@ -283,12 +283,14 @@ def build_router(auth_dependency, admin_dependency):
             # event envelope. The event hash alone is therefore not sufficient to
             # prevent a payment reference from being credited twice.
             reference=data.get('reference')
-            if persistence.enabled() and reference:
-                prior_payment=await persistence.sb_request(
-                    'GET','payments',
-                    params={'reference':f'eq.{reference}','status':'eq.success','select':'id','limit':'1'}
-                )
-                if prior_payment:
+            # Atomically claim the payment reference before any entitlement mutation.
+            # Two webhook deliveries with different event IDs can arrive concurrently;
+            # a read-then-write status check is raceable and could double-credit the wallet.
+            if persistence.enabled():
+                if not reference:
+                    return {'ok':False,'ignored':'missing_payment_reference'}
+                claimed=await persistence.sb_request('POST','rpc/claim_paystack_payment_success',{'p_reference':reference})
+                if not claimed or not bool(claimed[0]):
                     return {'ok':True,'duplicate_payment':True,'reference':reference}
             if metadata.get('type') == 'vidigen_credit_pack':
                 if uid and int(metadata.get('credits') or 0) == 150 and persistence.enabled():
