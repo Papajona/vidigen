@@ -40,3 +40,14 @@ def test_critical_media_routes_are_registered():
     assert '/api/remove-background' in paths
     assert '/api/remove-background/status/{job_id}' in paths
     assert '/api/auto-reframe' in paths
+    assert '/api/storage/me' in paths
+
+
+@pytest.mark.anyio
+async def test_r2_upload_guards_require_signed_media():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url='http://test') as c:
+        r = await c.post('/api/r2-presign', json={'object_key':'x','content_type':'application/octet-stream'})
+        assert r.status_code == 401
+        r = await c.get('/api/storage/me')
+        assert r.status_code == 401
