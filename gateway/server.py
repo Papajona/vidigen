@@ -1460,7 +1460,7 @@ async def remove_background_status(job_id: str, request: Request, user=Depends(a
 class R2PresignRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     object_key: str = Field(min_length=1, max_length=500)
-    content_type: str = Field(default='application/octet-stream', max_length=200, pattern=r'^(image|video|audio)/[a-zA-Z0-9.+-]+
+    content_type: str = Field(default='application/octet-stream', max_length=200, pattern=r'^(image|video|audio)/[A-Za-z0-9.+-]+\\Z')
 @app.post('/api/r2-presign')
 async def r2_presign(req: R2PresignRequest, request: Request, user=Depends(auth)):
     """Signs a short-lived presigned R2 PUT URL so the client uploads media directly to
