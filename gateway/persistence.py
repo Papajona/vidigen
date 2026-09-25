@@ -122,6 +122,48 @@ async def create_asset(user_id,project_id,kind,storage_key,mime_type=None,bytes_
     rows=await sb_request('POST','assets',{'user_id':user_id,'project_id':project_id,'kind':kind,'storage_key':storage_key,'mime_type':mime_type,'bytes':bytes_count,'provenance':provenance or {}})
     return rows[0]['id'] if rows else None
 
+# --- Project persistence ------------------------------------------------------------------
+async def list_projects(user_id: str) -> list[dict]:
+    if not enabled() or not user_id:
+        return []
+    return await sb_request('GET', 'projects', params={
+        'user_id': f'eq.{user_id}', 'select': '*', 'order': 'updated_at.desc'
+    }) or []
+
+async def create_project(user_id: str, project_id: str, name: str, timeline: dict | list | None = None) -> dict | None:
+    if not enabled() or not user_id:
+        return None
+    rows = await sb_request('POST', 'projects', {
+        'id': project_id, 'user_id': user_id, 'name': name[:200], 'timeline': timeline or {}
+    })
+    return rows[0] if rows else None
+
+async def update_project(user_id: str, project_id: str, name: str | None = None, timeline: dict | list | None = None) -> dict | None:
+    if not enabled() or not user_id:
+        return None
+    body = {}
+    if name is not None: body['name'] = name[:200]
+    if timeline is not None: body['timeline'] = timeline
+    if not body: return await get_project(user_id, project_id)
+    rows = await sb_request('PATCH', 'projects', body, params={
+        'id': f'eq.{project_id}', 'user_id': f'eq.{user_id}'
+    })
+    return rows[0] if rows else None
+
+async def get_project(user_id: str, project_id: str) -> dict | None:
+    if not enabled() or not user_id: return None
+    rows = await sb_request('GET', 'projects', params={
+        'id': f'eq.{project_id}', 'user_id': f'eq.{user_id}', 'select': '*', 'limit': '1'
+    })
+    return rows[0] if rows else None
+
+async def delete_project(user_id: str, project_id: str) -> bool:
+    if not enabled() or not user_id: return False
+    rows = await sb_request('DELETE', 'projects', params={
+        'id': f'eq.{project_id}', 'user_id': f'eq.{user_id}', 'select': 'id'
+    })
+    return bool(rows)
+
 # --- Developer Dashboard: admin check + feature flags ------------------------------------
 async def is_admin(uid: str) -> bool:
     """Checked via the service-role key (bypasses RLS) — deliberately never checkable from
