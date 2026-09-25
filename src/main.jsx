@@ -185,7 +185,30 @@ function App(){
  const current=activeClip||null;
  const [editor,setEditor]=useState({...DEFAULT_CLIP});
  useEffect(()=>save('vidigen_learning_history',history),[history]);
- useEffect(()=>save('vidigen_projects',projects),[projects]);
+ useEffect(()=>save('vidigen_projects',projects),[projects]);\n useEffect(()=>{
+   if(!token||!online) return;
+   let cancelled=false;
+   (async()=>{
+     try{
+       const r=await gatewayFetch(gateway,'/api/projects',{},token);
+       if(!r.ok) return;
+       const data=await r.json();
+       const remote=(data.projects||[]).map(p=>{
+         const timeline=p.timeline&&typeof p.timeline==='object'&&!Array.isArray(p.timeline)?p.timeline:{};
+         return {id:p.id,title:p.name||'Untitled project',mode:timeline.mode||'Project',date:p.updated_at?new Date(p.updated_at).toLocaleDateString():'',scenes:Number(timeline.scenes||0),clips:Array.isArray(timeline.clips)?timeline.clips:[]};
+       });
+       if(cancelled||!remote.length) return;
+       setProjects(local=>{
+         const byId=new Map(remote.map(p=>[String(p.id),p]));
+         const merged=[...remote];
+         for(const p of local){if(!byId.has(String(p.id))) merged.push(p)}
+         return merged.slice(0,50);
+       });
+     }catch{}
+   })();
+   return()=>{cancelled=true};
+ },[token,online,gateway]);
+
  useEffect(()=>save('vidigen_timeline_v12',clips),[clips]);
  useEffect(()=>()=>{if(generationSource?.preview?.startsWith('blob:')) URL.revokeObjectURL(generationSource.preview)},[generationSource?.preview]);
  useEffect(()=>save('vidigen_active_clip',activeId),[activeId]);
