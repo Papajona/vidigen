@@ -554,56 +554,59 @@ function App(){
    </main>
    <aside className="inspector">
     {nav==='Create'&&<>
-  <div className="inspectorTop"><div><b>Create</b><small className="modalSub">One prompt, a few choices, then Generate.</small></div><span className="tinyBadge">DIRECTOR</span></div>
-  <label className="sectionLabel">Start with</label>
-  <div className="modeGrid">{MODES.map(m=><button key={m} className={"mode "+(mode===m?"active":"")} onClick={()=>setMode(m)}>{m}</button>)}</div>
-  {generationSourceTypeForMode()&&<div className="sourceCard">
-    <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Upload a matching source or use the selected asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
+  <div className="inspectorTop">
+    <div><b>Create</b><small className="modalSub">Give Vidigen the idea. Keep the rest simple.</small></div>
+    <span className="tinyBadge">AI DIRECTOR</span>
+  </div>
+  <label className="sectionLabel">Create with</label>
+  <div className="modeGrid silkModes">
+    {MODES.map(m=><button key={m} className={"mode "+(mode===m?"active":"")} onClick={()=>setMode(m)}>
+      <span className="modeTitle">{m}</span>
+      <small>{m==='Text → Video'?'Turn a prompt into a cinematic shot':m==='Image → Video'?'Animate a still image':m==='Video → Video'?'Transform existing footage':'Generate a polished image'}</small>
+    </button>)}
+  </div>
+  {generationSourceTypeForMode()&&<div className="sourceCard silkSource">
+    <div className="sourceHead">
+      <div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>{generationSource?'Ready to use':'Optional for this mode'}</small></div>
+      {generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}
+    </div>
     {generationSource
       ? <div className="sourcePreview">{generationSource.type==='image'?<img src={generationSource.preview} alt="" />:<video src={generationSource.preview} muted playsInline controls={false}/>}<div><b>{generationSource.name}</b><small>Ready for {mode}</small></div></div>
-      : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected asset</button>}<span>or choose an asset from Media</span></div>}
-    </div>}
-  <label className="sectionLabel">Prompt</label>
-  <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={mode==='Text → Image'?'Describe the image you want…':'Describe what should happen in the video…'}/>
-  <div className="promptMeta"><span>Natural language is enough.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
-  <div className="promptChips compactChips">
-    <button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with a bold opening hook, elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product</button>
-    <button type="button" onClick={()=>{setPrompt('Create a fast, energetic vertical social video with a strong opening hook, punchy cuts, captions and a memorable ending.');setRatio('9:16')}}>Social</button>
-    <button type="button" onClick={()=>setPrompt('Create a cinematic scene with consistent subject identity, refined lighting, rich composition and a satisfying visual payoff.')}>Cinematic</button>
+      : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected</button>}<span>or use an asset from Media</span></div>}
+  </div>}
+  <div className="createPromptHead">
+    <label className="sectionLabel">Your idea</label>
+    <span>Natural language is enough</span>
   </div>
-
-  <details className="promptTools">
-    <summary>AI assist <small>Optional</small></summary>
-    <div className="promptToolBody">
-      <button onClick={analyze}>Check idea</button>
-      <button onClick={improvePrompt}>Improve prompt</button>
-    </div>
-  </details>
-
-  {analysis&&<div className="analysis compactAnalysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span></div>}
-
-  <div className="quickSettings">
+  <textarea className="prompt silkPrompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={mode==='Text → Image'?'Describe the image you want…':'Describe the video you want…'}/>
+  <div className="promptMeta"><span>Vidigen will shape the details for you.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
+  <div className="promptChips compactChips">
+    <button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product ad</button>
+    <button type="button" onClick={()=>{setPrompt('Create a vertical social video with a strong opening hook, punchy pacing, captions and a memorable ending.');setRatio('9:16');setMode('Text → Video')}}>Social</button>
+    <button type="button" onClick={()=>{setPrompt('Create a cinematic still with refined lighting, rich composition and a premium editorial feel.');setMode('Text → Image')}}>Image</button>
+  </div>
+  <div className="quickSettings silkQuickSettings">
     <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
     {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
   </div>
-
-  <details className="advancedSettings">
-    <summary><span>More controls</span><small>Camera &amp; engine</small></summary>
-    <div className="advancedBody">
-      {mode!=='Text → Image'&&<><label>Camera</label><select value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select></>}
-      <label>Engine</label><select value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
+  <details className="promptTools silkMore">
+    <summary>More options <small>Camera, engine &amp; AI assist</small></summary>
+    <div className="promptToolBody silkMoreBody">
+      {mode!=='Text → Image'&&<div className="silkOption"><label>Camera</label><select value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select></div>}
+      <div className="silkOption"><label>Engine</label><select value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></div>
+      <button onClick={analyze}>Check idea</button><button onClick={improvePrompt}>Improve prompt</button>
     </div>
   </details>
-
-  <div className="generationSummary simpleSummary">
+  {analysis&&<div className="analysis compactAnalysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span></div>}
+  <div className="generationSummary simpleSummary silkSummary">
     <div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode}{mode!=='Text → Image'?' • '+duration:''} • {ratio}</b></div>
     <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span>
   </div>
-  <button className="generate" disabled={generating||!featureReadyForMode} onClick={generate}>
-    {generating?'Generating '+progress+'%':'Generate'}
-    <small>{generating?'Creating your result…':'Create and place it on your timeline.'}</small>
+  <button className="generate silkGenerate" disabled={generating||!featureReadyForMode} onClick={generate}>
+    <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
+    <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
-</>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
+</>}>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
  const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
     {nav==='Text'&&<>
