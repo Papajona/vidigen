@@ -809,6 +809,39 @@ async def remove_background(image_url: str) -> GenerationResult:
     )
 
 
+async def background_status(job_id: str, kind: str = "image") -> GenerationResult:
+    """Read the status of a Replicate background-removal prediction by its prediction id."""
+    token = os.getenv("REPLICATE_API_TOKEN", "")
+    if not token:
+        raise ProviderError("Replicate is not configured on the server.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", str(job_id or "")):
+        raise ProviderError("Invalid background-removal job id.")
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as c:
+        r = await c.get(
+            f"https://api.replicate.com/v1/predictions/{job_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code >= 400:
+        raise ProviderError("Background removal status request rejected ({0}).".format(r.status_code))
+    d = r.json()
+    out = d.get("output")
+    if kind == "video":
+        out_url = out if isinstance(out, str) else (
+            out[0] if isinstance(out, list) and out and isinstance(out[0], str) else None
+        )
+        provider_name = "replicate-rembg-video"
+    else:
+        out_url = out if isinstance(out, str) else None
+        provider_name = "replicate-rembg"
+    return GenerationResult(
+        provider_name,
+        str(d.get("id") or job_id),
+        str(d.get("status", "starting")),
+        out_url,
+        d,
+    )
+
+
 async def remove_background_video(video_url: str) -> GenerationResult:
     token = os.getenv("REPLICATE_API_TOKEN", "")
     if not token:
