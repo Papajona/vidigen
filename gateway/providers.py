@@ -120,7 +120,7 @@ def _normalize_capability(cap: str) -> str:
 
 def _operation_capability(mode: str) -> str:
     text = str(mode or "").strip().lower().replace("→", "to")
-    if text in ("text to image", "text-image"):
+    if text in ("text to image", "text-image", "avatar"):
         return "image"
     if text in ("image to video", "image-video"):
         return "image-to-video"
