@@ -2160,6 +2160,23 @@ async def _persist_provider_output(output_url: str, uid: str | None, *, image: b
         key=f'users/{uid}/generations/{uuid.uuid4().hex}{suffix}'
         await _enforce_storage_capacity(uid, total)
         await asyncio.to_thread(s3.upload_file, tmp_path, bucket, key, ExtraArgs={'ContentType':content_type})
+        # A durable R2 generation must also be represented in the assets table. Without
+        # this metadata row, /api/storage/me would under-count generated media and a user
+        # could bypass the storage quota simply by generating enough provider outputs.
+        # If metadata persistence fails, remove the uploaded object before falling back to
+        # the provider URL so an orphaned R2 object cannot silently consume untracked space.
+        if persistence.enabled():
+            try:
+                await persistence.create_asset(
+                    uid, None, 'image' if image else 'video', key, content_type, total,
+                    {'source': 'provider_generation'}
+                )
+            except Exception:
+                try:
+                    await asyncio.to_thread(s3.delete_object, Bucket=bucket, Key=key)
+                except Exception:
+                    log.exception('Provider output asset metadata failed and cleanup of the R2 object also failed')
+                raise
         return f'{public_base}/{key}'
     except StorageQuotaExceeded:
         raise
