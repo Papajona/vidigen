@@ -1460,7 +1460,7 @@ async def remove_background_status(job_id: str, request: Request, user=Depends(a
 class R2PresignRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     object_key: str = Field(min_length=1, max_length=500)
-    content_type: str = Field(default='application/octet-stream', max_length=200, pattern=r'^(image|video|audio)/[A-Za-z0-9.+-]+\\Z')
+    content_type: str = Field(default='application/octet-stream', max_length=200)
 @app.post('/api/r2-presign')
 async def r2_presign(req: R2PresignRequest, request: Request, user=Depends(auth)):
     """Signs a short-lived presigned R2 PUT URL so the client uploads media directly to
@@ -1472,6 +1472,9 @@ async def r2_presign(req: R2PresignRequest, request: Request, user=Depends(auth)
     access_key = os.getenv('R2_ACCESS_KEY_ID', '')
     secret_key = os.getenv('R2_SECRET_ACCESS_KEY', '')
     bucket = os.getenv('R2_BUCKET', '')
+    content_type = req.content_type.lower().strip()
+    if '/' not in content_type or not any(content_type.startswith(kind + '/') for kind in ('image','video','audio')) or len(content_type) > 200:
+        raise HTTPException(415, 'Only image, video, or audio uploads are supported.')
     if not all([endpoint, access_key, secret_key, bucket]):
         raise HTTPException(501, 'Cloudflare R2 is not configured on this gateway (R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET).')
 
