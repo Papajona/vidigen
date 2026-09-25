@@ -104,3 +104,19 @@ def test_healthz_is_public_liveness_probe():
     r = asyncio.run(check())
     assert r.status_code == 200
     assert r.json() == {'ok': True}
+
+
+def test_feature_health_probe_is_nonsecret(monkeypatch):
+    monkeypatch.setenv('R2_ENDPOINT','x')
+    monkeypatch.setenv('R2_ACCESS_KEY_ID','x')
+    monkeypatch.setenv('R2_SECRET_ACCESS_KEY','x')
+    monkeypatch.setenv('R2_BUCKET','x')
+    monkeypatch.setenv('R2_PUBLIC_BASE_URL','https://cdn.example')
+    monkeypatch.delenv('REPLICATE_API_TOKEN', raising=False)
+    r = asyncio.run(call('GET', '/api/features/health'))
+    assert r.status_code == 200
+    body = r.json()
+    assert body['gateway'] is True
+    assert body['google_pay'] is False
+    assert 'providers' in body and 'configured' in body['providers']
+    assert 'REPLICATE_API_TOKEN' not in str(body)
