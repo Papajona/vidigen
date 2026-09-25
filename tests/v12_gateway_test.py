@@ -71,6 +71,19 @@ def test_render_clip_accepts_editor_properties():
     assert clip.overlay.text == 'Launch now'
 
 
+def test_render_filter_preserves_editor_controls():
+    from gateway.server import RenderClip, _clip_video_filter
+    clip = RenderClip(
+        uri='https://cdn.example/clip.mp4', speed=1.5, scale=90, opacity=80,
+        overlay={'text':'Launch now', 'size':36, 'x':50, 'y':80, 'bold':True},
+    )
+    vf = _clip_video_filter('16:9', clip)
+    assert 'setpts=PTS/1.500000' in vf
+    assert 'lutrgb=' in vf
+    assert 'drawtext=' in vf
+    assert 'fontsize=36.0' in vf
+
+
 def test_render_requires_durable_http_sources():
     r = asyncio.run(call('POST', '/api/render', {
         'ratio': '16:9',
