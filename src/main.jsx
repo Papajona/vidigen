@@ -24,7 +24,7 @@ if (SENTRY_DSN) {
 }
 
 const BUILD_HEALTH_CHECK='cloud-run-direct';
-const NAV=[['Create','✦'],['Media','▧'],['Text','T'],['Effects','◌'],['Audio','♫'],['Captions','CC']];
+const NAV=[['Create','✦'],['Media','▧'],['Effects','◌'],['Captions','CC']];
 const MODES=['Text → Video','Image → Video','Video → Video','Text → Image'];
 const CAMERA_MOVES=['Auto (let the model choose)','Static shot','Slow push in','Pull out','Pan left','Pan right','Tilt up','Tilt down','Orbit around subject','Handheld','Aerial / drone','Dolly tracking shot'];
 const RATIOS=['16:9','9:16','1:1','4:5','21:9'];
@@ -177,7 +177,6 @@ function App(){
  const [captions,setCaptions]=useState(()=>read('vidigen_captions',[])),[captioning,setCaptioning]=useState(false),[captionStyle,setCaptionStyle]=useState('Bold');
  const [audio,setAudio]=useState(()=>read('vidigen_audio',null)),[recording,setRecording]=useState(false);
  const [overlay,setOverlay]=useState({text:'',size:42,x:50,y:82,bold:true});
- const [avatar,setAvatar]=useState({script:'Welcome to Vidigen AI. Turn an idea into a polished video in minutes.',presenter:'Studio Presenter',voice:'Natural',language:'English',background:'Studio'});
  const [aiCommand,setAiCommand]=useState('');
  const [commandBusy,setCommandBusy]=useState(false);
  const video=useRef(null),audioInput=useRef(null),recorder=useRef(null),chunks=useRef([]);
@@ -621,9 +620,30 @@ function App(){
         </div>
         <button onClick={addOverlay} disabled={!activeClip||!overlay.text.trim()}>{activeClip?'Add to selected clip':'Select a clip first'}</button>
       </div>
-      <div className="featureNotice"><div><b>Presenter / Avatar</b><span>Coming next</span></div><p>This workspace does not expose presenter generation until a production avatar provider is actually connected. No fake controls are shown.</p></div>
+      
     </>}    {nav==='Audio'&&<><div className="sectionCard"><b>Audio studio</b><input ref={audioInput} type="file" accept="audio/*,video/*" onChange={e=>importAudio(e.target.files?.[0])}/><div className="audioButtons"><button onClick={recording?stopRecording:startRecording}>{recording?'Stop recording':'Record voiceover'}</button><button onClick={transcribe} disabled={(!audio&&!activeClip)||captioning}>{captioning?'Transcribing…':'Auto captions'}</button></div>{audio&&<audio controls src={audio.url}/>}</div><div className="sectionCard"><b>Selected clip mix</b>{activeClip&&<><label>Volume {Math.round(editor.volume*100)}%</label><input type="range" min="0" max="2" step=".01" value={editor.volume} onChange={e=>patchClip({volume:+e.target.value})}/><label>Speed {editor.speed}×</label><input type="range" min=".25" max="4" step=".05" value={editor.speed} onChange={e=>patchClip({speed:+e.target.value})}/></>}</div></>}
     {nav==='Effects'&&<>
+      <details className="editorSectionCompact" open>
+        <summary><span><b>Text &amp; audio</b><small>Add overlays, voiceover and sound without leaving Edit.</small></span><i>⌄</i></summary>
+        <div className="editorSectionCompactBody">
+          <div className="sectionCard compactFeatureCard">
+            <b>Text overlay</b>
+            <input value={overlay.text} onChange={e=>setOverlay({...overlay,text:e.target.value})} placeholder="Add a title, hook or CTA…"/>
+            <div className="twoFields">
+              <div><label>Size</label><input type="number" min="12" max="120" value={overlay.size} onChange={e=>setOverlay({...overlay,size:+e.target.value})}/></div>
+              <div><label>Vertical position</label><input type="number" min="5" max="95" value={overlay.y} onChange={e=>setOverlay({...overlay,y:+e.target.value})}/></div>
+            </div>
+            <button onClick={addOverlay} disabled={!activeClip||!overlay.text.trim()}>{activeClip?'Add overlay':'Select a clip first'}</button>
+          </div>
+          <div className="sectionCard compactFeatureCard">
+            <b>Audio</b>
+            <input ref={audioInput} type="file" accept="audio/*,video/*" onChange={e=>importAudio(e.target.files?.[0])}/>
+            <div className="audioButtons"><button onClick={recording?stopRecording:startRecording}>{recording?'Stop recording':'Record voiceover'}</button></div>
+            {audio&&<audio controls src={audio.url}/>}
+            {activeClip&&<><label>Volume {Math.round(editor.volume*100)}%</label><input type="range" min="0" max="2" step=".01" value={editor.volume} onChange={e=>patchClip({volume:+e.target.value})}/><label>Speed {editor.speed}×</label><input type="range" min=".25" max="4" step=".05" value={editor.speed} onChange={e=>patchClip({speed:+e.target.value})}/></>}
+          </div>
+        </div>
+      </details>
       <div className="sectionCard aiCommandCard"><b>AI Edit</b><span>Tell Vidigen what to change. Example: “trim the selected clip to 3 seconds” or “make this clip 1.5× faster.”</span><div className="aiCommandRow"><input value={aiCommand} onChange={e=>setAiCommand(e.target.value)} placeholder="Describe an edit…"/><button onClick={runAICommand} disabled={commandBusy||!aiCommand.trim()}>{commandBusy?'Working…':'Apply'}</button></div></div><div className="sectionCard"><b>Professional controls</b><div className="twoFields"><div><label>Trim in</label><input type="number" min="0" step=".1" value={editor.trimStart} onChange={e=>patchClip({trimStart:+e.target.value})}/></div><div><label>Trim out</label><input type="number" min="0" step=".1" value={editor.trimEnd} onChange={e=>patchClip({trimEnd:+e.target.value})}/></div></div><div className="twoFields"><div><label>Brightness</label><input type="range" min="50" max="150" value={editor.brightness} onChange={e=>patchClip({brightness:+e.target.value})}/></div><div><label>Contrast</label><input type="range" min="50" max="150" value={editor.contrast} onChange={e=>patchClip({contrast:+e.target.value})}/></div></div><div className="twoFields"><div><label>Saturation</label><input type="range" min="0" max="200" value={editor.saturation} onChange={e=>patchClip({saturation:+e.target.value})}/></div><div><label>Blur</label><input type="range" min="0" max="12" value={editor.blur} onChange={e=>patchClip({blur:+e.target.value})}/></div></div><label>Scale {editor.scale}%</label><input type="range" min="50" max="150" value={editor.scale} onChange={e=>patchClip({scale:+e.target.value})}/><label>Opacity {editor.opacity}%</label><input type="range" min="0" max="100" value={editor.opacity} onChange={e=>patchClip({opacity:+e.target.value})}/><label>Rotation {editor.rotation}°</label><input type="range" min="-180" max="180" value={editor.rotation} onChange={e=>patchClip({rotation:+e.target.value})}/><div className="audioButtons"><button onClick={splitClip}>Split</button><button onClick={duplicateClip}>Duplicate</button><button onClick={deleteClip}>Delete</button></div><div className="audioButtons"><button disabled={reframing||!activeClip||isImageMedia(activeClip)} onClick={autoReframe}>{reframing?'Reframing…':isImageMedia(activeClip)?'Auto-reframe is for video':'Auto-reframe'} </button><button disabled={bgRemoving||!activeClip} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button></div><div className="audioButtons"><button disabled={bgRemoving||!activeClip||!isImageMedia(activeClip)} onClick={enhancePhoto}>{bgRemoving?'Enhancing…':isImageMedia(activeClip)?'Enhance selected photo':'Select a photo to enhance'}</button></div>{activeClip&&<p className="hint">Background removal uploads this clip to your configured Cloudflare R2 bucket, then runs it through Replicate — needs R2 and REPLICATE_API_TOKEN set on the gateway.</p>}</div><div className="sectionCard"><b>Keyframes</b><p>Animate transform properties directly on the timeline.</p><button onClick={addKeyframe}>Add keyframe at playhead</button><button onClick={clearKeyframes}>Clear keyframes</button>{activeClip?.keyframes?.map((k,i)=><div className="keyframeRow" key={i}><span>{k.time.toFixed(2)}s</span><small>scale {k.scale}% • opacity {k.opacity}% • rot {k.rotation}°</small></div>)}</div></>}
     {nav==='Captions'&&<><div className="sectionCard"><b>Caption studio</b><p>{captions.length?`${captions.length} timed segments ready.`:(activeClip?'Select Auto captions to transcribe this clip.':'Add or select media to create captions.')}</p><button onClick={transcribe} disabled={(!audio&&!activeClip)||captioning}>{captioning?'Transcribing…':audio?'Transcribe audio':'Transcribe selected video'}</button><button onClick={downloadSrt}>Export SRT</button><label>Style</label><select value={captionStyle} onChange={e=>setCaptionStyle(e.target.value)}><option>Bold</option><option>Clean</option><option>Minimal</option></select></div><div className="captionList">{captions.slice(0,40).map((c,i)=><div key={i}><time>{c.start.toFixed(2)}s</time><span>{c.text}</span></div>)}</div></>}
     {nav==='Billing'&&<div className="sectionCard">
@@ -639,7 +659,6 @@ function App(){
             ? <button disabled>Current free tier</button>
             : <div className="audioButtons">
                 <button disabled={billingBusy} onClick={async()=>{setBillingBusy(true);try{await startBillingCheckout(gateway,token,p.slug,'paystack')}catch(e){setStatus(e.message)}finally{setBillingBusy(false)}}}>{billingBusy?'Opening…':'Pay with Paystack'}</button>
-                <button disabled title="Google Pay production is separate and remains disabled until Google approval and a confirmed production processor are configured.">Google Pay (pending)</button>
               </div>
           }
         </div>)}
@@ -647,7 +666,7 @@ function App(){
       <div className="hint">Free plan: 5 photo enhancements per day, with 500 MB storage. Video generation is available through purchased credits or a paid plan. Presenter/avatar generation will appear when a production avatar provider is enabled.</div>
       <div className="analysis"><b>Video credits</b><span>150 credits • GHS 30.00</span><button onClick={async()=>{try{const r=await gatewayFetch(gateway,'/api/billing/checkout/credits',{method:'POST',body:JSON.stringify({credits:150})},token);const d=await r.json();if(!d.authorization_url)throw new Error('No Paystack checkout URL returned.');window.location.href=d.authorization_url}catch(e){setStatus(e.message)}}}>Buy 150 credits</button></div>
       <div className="analysis"><b>Credit balance</b><span>{billing?.wallet?.balance??'—'} credits remaining</span></div>
-      <div className="paymentNote"><span>Payments are processed securely through Paystack.</span><small>Google Pay support will appear here when the production processor and approval are confirmed.</small></div>
+      <div className="paymentNote"><span>Payments are processed securely through Paystack.</span></div>
     </div>}
     {nav==='Projects'&&<div className="sectionCard"><b>Projects</b><p>{projects.length} projects saved in this browser. Generation jobs can also be persisted to your account.</p>{projects.length?projects.map(p=><button className="mediaLine" key={p.id} onClick={()=>{if(Array.isArray(p.clips)&&p.clips[0]&&typeof p.clips[0]==='object'){setClips(p.clips);setActiveId(p.clips[0]?.id||null);setNav('Effects');setStatus(`Loaded project: ${p.title}`)}else setStatus('This older project record does not contain media snapshots. Generate it again to rebuild the timeline.')}}><div className="projectThumb">AI</div><span>{p.title}<small>{p.mode} • {p.scenes} shots • {p.date}</small></span></button>):<div className="emptyState"><b>No saved projects yet</b><span>Generate something and Vidigen will save the project snapshot here.</span></div>}</div>}
    </aside>
@@ -696,7 +715,7 @@ function App(){
     onAuthenticated={(accessToken)=>{setToken(accessToken);setShowAuth(false);}}
     onClose={()=>setShowAuth(false)}
   />}
-  <div className="mobileNav">{NAV.slice(0,5).map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>setNav(n)}>{n}</button>)}</div>
+  <div className="mobileNav">{NAV.map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>setNav(n)}>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</button>)}</div>
  </div>
 }
 
