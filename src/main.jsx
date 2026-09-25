@@ -458,10 +458,18 @@ function App(){
    setStatus('Uploading source media…');
    return uploadBlobForRender(blob,`generation-src/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`,mime);
  }
+ function nativeExportSafe(){
+   const editableKeys=['speed','volume','brightness','contrast','saturation','blur','rotation','scale','opacity'];
+   return !clips.some(c=>{
+     if(isImageMedia(c)) return true;
+     if(c.overlay || (c.keyframes||[]).length) return true;
+     return editableKeys.some(k=>Math.abs(Number(c[k]??DEFAULT_CLIP[k])-Number(DEFAULT_CLIP[k]))>0.001);
+   }) && !(audio?.url||'').startsWith('blob:');
+ }
  async function exportProject(){
    setExportBusy(true)
    try{
-     if(nativeExportAvailable() && !clips.some(isImageMedia)){
+     if(nativeExportAvailable() && nativeExportSafe()){
        setStatus('Exporting locally on-device…')
        const prepared=[]
        for(const c of clips.filter(c=>c.track!=='Audio')){
