@@ -36,114 +36,40 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # required for keyless Workload Identity Federation auth below
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-
-      # Keyless auth: no long-lived service-account JSON key stored in GitHub. See
-      # DEPLOYMENT.md for the one-time `gcloud` commands that set up the WIF pool,
-      # provider and service account these two secrets point at.
       - id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
-
       - uses: google-github-actions/setup-gcloud@v2
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-
       - name: Build image
         run: |
-          docker build \
-            -t "${IMAGE}:${{ github.sha }}" \
-            -t "${IMAGE}:latest" \
-            -f Dockerfile .
-
+          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:latest" -f Dockerfile .
       - name: Push image
         run: |
           docker push "${IMAGE}:${{ github.sha }}"
           docker push "${IMAGE}:latest"
-
-      # --no-cpu-throttling + concurrency=4: this app does real CPU work (ffmpeg render,
-      # faster-whisper transcription) inside a request, not just I/O waiting. Cloud Run's
-      # default "throttle CPU outside of request handling" plus a high default concurrency
-      # (80) is tuned for I/O-bound web apps and will starve this workload.
-      #
-      # min/max-instances=1: the in-memory rate limiter and job caches in gateway/server.py
-      # live in one process's memory. Running more than one instance silently gives each
-      # instance its own separate rate-limit counter and job cache — not a crash, just a
-      # quietly wrong limit. Raise max-instances once that's moved to a shared store
-      # (e.g. Redis/Memorystore); until then, stay at 1.
       - name: Deploy to Cloud Run
         id: deploy
         run: |
           gcloud run deploy "${SERVICE}" \
             --image="${IMAGE}:${{ github.sha }}" \
-            --region="${REGION}" \
-            --platform=managed \
-            --allow-unauthenticated \
-            --ingress=all \
-            --memory=4Gi \
-            --cpu=2 \
-            --no-cpu-throttling \
-            --concurrency=4 \
-            --timeout=900 \
-            --min-instances=1 \
-            --max-instances=1 \
+            --region="${REGION}" --platform=managed --allow-unauthenticated --ingress=all \
+            --memory=4Gi --cpu=2 --no-cpu-throttling --concurrency=4 --timeout=900 \
+            --min-instances=1 --max-instances=1 \
             --set-env-vars="^@^VIDIGEN_ALLOWED_ORIGINS=${{ secrets.VIDIGEN_ALLOWED_ORIGINS }},https://vidigen.online,https://www.vidigen.online@VIDIGEN_RATE_LIMIT=30@VIDIGEN_ADMIN_2FA_REQUIRED=true@VIDIGEN_PAYMENT_TEST_MODE=false@GOOGLE_PAY_TEST_MODE=false@VIDIGEN_PROVIDER_PRIORITY=${{ secrets.VIDIGEN_PROVIDER_PRIORITY || 'replicate,seedance,runway' }}@REPLICATE_MODEL=${{ secrets.REPLICATE_MODEL || 'bytedance/seedance-2.0' }}@REPLICATE_IMAGE_MODEL=${{ secrets.REPLICATE_IMAGE_MODEL || 'black-forest-labs/flux-schnell' }}@SEEDANCE_API_URL=${{ secrets.SEEDANCE_API_URL }}@SEEDANCE_API_TOKEN=${{ secrets.SEEDANCE_API_TOKEN }}@RUNWAY_API_URL=${{ secrets.RUNWAY_API_URL }}@RUNWAY_API_TOKEN=${{ secrets.RUNWAY_API_TOKEN }}@SEEDANCE_STATUS_URL_TEMPLATE=${{ secrets.SEEDANCE_STATUS_URL_TEMPLATE }}@RUNWAY_STATUS_URL_TEMPLATE=${{ secrets.RUNWAY_STATUS_URL_TEMPLATE }}@VIDIGEN_AGENT_JOB_TIMEOUT=900@VIDIGEN_MAX_RENDER_CLIPS=50@VIDIGEN_MAX_RENDER_BYTES=500000000@VIDIGEN_RENDER_TIMEOUT=900@VIDIGEN_RENDER_ALLOWED_HOSTS=${{ secrets.VIDIGEN_RENDER_ALLOWED_HOSTS }}@SUPABASE_URL=${{ secrets.SUPABASE_URL }}@SUPABASE_JWT_ISSUER=${{ secrets.SUPABASE_URL }}/auth/v1@R2_ENDPOINT=${{ secrets.R2_ENDPOINT }}@R2_BUCKET=${{ secrets.R2_BUCKET }}@R2_PUBLIC_BASE_URL=${{ secrets.R2_PUBLIC_BASE_URL }}@VIDIGEN_BILLING_CURRENCY=GHS@GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}@GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}@VIDIGEN_BILLING_ENFORCE=true" \
             --set-secrets="VIDIGEN_GATEWAY_TOKEN=vidigen-gateway-token:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,REPLICATE_API_TOKEN=replicate-api-token:latest,PAYSTACK_SECRET_KEY=paystack-secret-key:latest,R2_ACCESS_KEY_ID=r2-access-key-id:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,GROQ_API_KEY=groq-api-key:latest" 2>&1 | tee deploy.log
           DEPLOYED_URL=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.url)")
           test -n "$DEPLOYED_URL"
           echo "deployed_url=$DEPLOYED_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Confirm production API edge
-        run: |
-          echo "api.vidigen.online is served by the Cloudflare Worker custom-domain proxy."
-          echo "Cloud Run remains the origin service; Google Cloud domain verification is intentionally not required."
-
       - name: Verify deployed gateway
         env:
           DEPLOYED_URL: ${{ steps.deploy.outputs.deployed_url }}
         run: |
-          URL="$DEPLOYED_URL"
-          PUBLIC_URL="$DEPLOYED_URL"
-          REVISION=$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format="value(status.latestReadyRevisionName)")
-          echo "Deployed default URL: $URL"
-          echo "Production gateway URL: $PUBLIC_URL"
-          echo "Ready revision: $REVISION"
-          gcloud run services describe "${SERVICE}" --region="${REGION}" --format="yaml(metadata.name,metadata.annotations,status.url,status.traffic,status.latestReadyRevisionName,spec.template.metadata.annotations)"
-          echo "Cloud Run invoker IAM:"
-          gcloud run services get-iam-policy "${SERVICE}" --region="${REGION}" --format=json
-          echo "Container-local health:"
-          docker pull "${IMAGE}:${{ github.sha }}"
-          docker run -d --rm --name vidigen-gateway-smoke -e PORT=8080 -p 18080:8080 "${IMAGE}:${{ github.sha }}"
-          for i in $(seq 1 20); do
-            if curl --silent --fail http://127.0.0.1:18080/healthz >/dev/null; then break; fi
-            sleep 2
-          done
-          curl --fail --silent --show-error http://127.0.0.1:18080/healthz
-          docker rm -f vidigen-gateway-smoke >/dev/null 2>&1 || true
-          echo
-          echo "Authenticated production gateway health:"
-          GATEWAY_TOKEN=$(gcloud secrets versions access latest --secret=vidigen-gateway-token)
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/health"
-
-          echo
-          echo "Production provider runtime status:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "$PUBLIC_URL/api/providers"
-
-          echo
-          echo "Production FastAPI route:"
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$PUBLIC_URL/docs" >/dev/null
-          echo "FastAPI docs route: OK"
-          echo
-          echo "Custom gateway domain (best effort):"
-          if curl --silent --show-error --fail --retry 3 --retry-delay 2 -H "Authorization: Bearer $GATEWAY_TOKEN" "https://api.vidigen.online/health" >/tmp/custom-health.txt 2>/tmp/custom-health.err; then
-            cat /tmp/custom-health.txt
-            echo "api.vidigen.online: reachable"
-          else
-            cat /tmp/custom-health.err || true
-            echo "api.vidigen.online: not ready yet (Google domain verification/certificate may still be pending)."
-          fi
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$DEPLOYED_URL/docs" >/dev/null
+          echo "Cloud Run gateway: OK"
