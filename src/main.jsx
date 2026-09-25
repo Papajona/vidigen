@@ -185,7 +185,8 @@ function App(){
  const current=activeClip||null;
  const [editor,setEditor]=useState({...DEFAULT_CLIP});
  useEffect(()=>save('vidigen_learning_history',history),[history]);
- useEffect(()=>save('vidigen_projects',projects),[projects]);\n useEffect(()=>{
+ useEffect(()=>save('vidigen_projects',projects),[projects]);
+ useEffect(()=>{
    if(!token||!online) return;
    let cancelled=false;
    (async()=>{
