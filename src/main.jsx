@@ -521,11 +521,11 @@ function App(){
  const filter=`brightness(${editor.brightness}%) contrast(${editor.contrast}%) saturate(${editor.saturation}%) blur(${editor.blur}px)`;
  const isImageMedia=(c)=>!!c&&(c.mediaType==='image'||String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||'')));
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
+ const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
  const featureReadyForMode=featureHealth ? (mode==='Text → Image'?featureHealth.generation?.text_to_image:mode==='Image → Video'?featureHealth.generation?.image_to_video:mode==='Video → Video'?featureHealth.generation?.video_to_video:featureHealth.generation?.text_to_video) : availableModels.length>1;
  const generationStateLabel=featureHealth ? (featureReadyForMode?'Ready':'Unavailable') : (availableModels.length>1?'Ready':'Checking…');
  const availabilityDotClass=featureReadyForMode?'okText':'badText';
  const newProject=()=>{if(generating)return;clearGenerationSource();setClips([]);setActiveId(null);setCaptions([]);setAudio(null);setAnalysis(null);setOverlay({text:'',size:42,x:50,y:82,bold:true});setStatus('New project ready.');setNav('Create')};
- const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
  return <div className="app">
   <header className="topbar"><div className="brand"><div className="brandMark">V</div><span>Vidigen</span><b>V12</b></div><div className="projectTitle">AI Production Studio<small>{clips.length} clips • {captions.length} captions • {profile.successCount} learned preferences</small></div><div className="topActions"><span className={`enginePill ${online?'online':''}`}><i/> {online?'Gateway online':'Offline'}</span><button className="ghost" title="New project" onClick={newProject}>New</button><button className="ghost" title="Undo (Ctrl/⌘ + Z)" onClick={undo} disabled={!undoStack.length}>Undo</button><button className="ghost" title="Redo (Ctrl/⌘ + Shift + Z)" onClick={redo} disabled={!redoStack.length}>Redo</button><button className="ghost" title="Open Creative Brain" onClick={()=>setShowBrain(true)}>Brain</button><button className="export" onClick={()=>setShowExport(true)}>Export</button>{!token&&<button className="ghost" onClick={()=>setShowAuth(true)}>Sign in</button>}<div className="avatar">JA</div></div></header>
   <div className="editor">
@@ -558,7 +558,7 @@ function App(){
     <div><b>Create</b><small className="modalSub">Give Vidigen the idea. Keep the rest simple.</small></div>
     <span className="tinyBadge">AI DIRECTOR</span>
   </div>
-  <label className="sectionLabel">Create with</label>
+  <div className="createStep"><span>01</span><div><label className="sectionLabel">What are you making?</label><small>Pick one. Vidigen handles the rest.</small></div></div>
   <div className="modeGrid silkModes">
     {MODES.map(m=><button key={m} className={"mode "+(mode===m?"active":"")} onClick={()=>setMode(m)}>
       <span className="modeTitle">{m}</span>
@@ -575,7 +575,7 @@ function App(){
       : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected</button>}<span>or use an asset from Media</span></div>}
   </div>}
   <div className="createPromptHead">
-    <label className="sectionLabel">Your idea</label>
+    <div className="createStep"><span>02</span><div><label className="sectionLabel">Describe your idea</label><small>A sentence is enough.</small></div></div>
     <span>Natural language is enough</span>
   </div>
   <textarea className="prompt silkPrompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={mode==='Text → Image'?'Describe the image you want…':'Describe the video you want…'}/>
@@ -585,7 +585,7 @@ function App(){
     <button type="button" onClick={()=>{setPrompt('Create a vertical social video with a strong opening hook, punchy pacing, captions and a memorable ending.');setRatio('9:16');setMode('Text → Video')}}>Social</button>
     <button type="button" onClick={()=>{setPrompt('Create a cinematic still with refined lighting, rich composition and a premium editorial feel.');setMode('Text → Image')}}>Image</button>
   </div>
-  <div className="quickSettings silkQuickSettings">
+  <div className="createStep createStepAfter"><span>03</span><div><label className="sectionLabel">Output</label><small>Format and length.</small></div></div><div className="quickSettings silkQuickSettings"
     <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
     {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
   </div>
@@ -655,48 +655,38 @@ function App(){
   <section className="bottom"><div className="bottomHead"><b>Production assets</b><span>{clips.length} asset(s) in this project</span></div>{clips.length?<div className="cards">{clips.slice(0,12).map((c,i)=><button className="card" key={c.id} onClick={()=>{setActiveId(c.id);setNav('Effects')}}>{isImageMedia(c)?<img src={c.src} alt="" className="assetThumb"/>:<video src={c.src} muted preload="metadata"/>}<span><b>{c.title||`Shot ${i+1}`}</b><small>{c.kind||'Production asset'}</small></span></button>)}</div>:<div className="emptyState"><b>Your production assets will appear here</b><span>Generate or import media to begin.</span></div>}</section>
   <div className="feedback"><span>Teach the Brain from the latest result</span><button onClick={()=>rate(5)}>★ Excellent</button><button onClick={()=>rate(3)}>Good</button><button onClick={()=>rate(1)}>Needs work</button><button onClick={()=>setShowBrain(true)}>View Brain</button></div>
   {showBrain&&<div className="modalBack"><div className="modal wideModal"><div className="modalHead"><div><b>Vidigen Creative Brain</b><small className="modalSub">Persistent preference learning and output memory</small></div><button onClick={()=>setShowBrain(false)}>×</button></div><div className="stats"><div><b>{brainProfile.learned_outputs||history.length}</b><span>learned outputs</span></div><div><b>{brainProfile.feedback_count||0}</b><span>feedback signals</span></div><div><b>{(brainProfile.preferred_tags||profile.preferredTags||[]).length}</b><span>style preferences</span></div></div><div className="brainStatus"><span className="statusDot"/><div><b>{online?'Brain connected to server':'Local Brain only'}</b><small>{online?'Completed outputs and feedback can persist to your Vidigen account.':'Sign in and connect the production gateway to enable persistent server learning.'}</small></div></div><label>Learned style signals</label><div className="tags">{(brainProfile.preferred_tags||profile.preferredTags||[]).length?(brainProfile.preferred_tags||profile.preferredTags).map(t=><span key={t}>{t}</span>):<small>No high-confidence preferences yet. Rate completed work to teach the Brain.</small>}</div><label>How learning works</label><p className="hint">Each completed job can be analyzed into reusable creative metadata. Only explicit positive feedback influences preferred style signals. Vidigen does not silently retrain third-party foundation models.</p><button className="danger" onClick={()=>{setHistory([]);setBrainProfile({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});setStatus('Local creative memory cleared. Server Brain data remains account-scoped.')}}>Clear local memory</button></div></div>}
-  {showSettings&&<div className="modalBack"><div className="modal wideModal settingsModal">
-    <div className="modalHead"><div><b>Settings</b><small className="modalSub">Keep the studio quiet. Creation controls stay in Create.</small></div><button onClick={()=>setShowSettings(false)}>×</button></div>
-    <div className="settingsTabs settingsTabsSimple">
-      <button className={settingsTab==='general'?'active':''} onClick={()=>setSettingsTab('general')}>Preferences</button>
-      <button className={settingsTab==='account'?'active':''} onClick={()=>setSettingsTab('account')}>Account</button>
-      <button className={settingsTab==='advanced'?'active':''} onClick={()=>setSettingsTab('advanced')}>Advanced</button>
+  {showSettings&&<div className="modalBack"><div className="modal wideModal settingsModal silkSettings">
+  <div className="modalHead"><div><b>Studio settings</b><small className="modalSub">Creation stays in the studio. Settings only change your workspace.</small></div><button onClick={()=>setShowSettings(false)} aria-label="Close settings">×</button></div>
+  <div className="settingsQuickGrid">
+    <section className="settingsSection">
+      <div className="settingsSectionHead"><div><b>Workspace</b><span>Simple defaults for every new project.</span></div><span className="settingsState"><i className={online?'on':''}/>{online?'Connected':'Offline'}</span></div>
+      <div className="settingsInline"><span>Generation routing</span><strong>Automatic</strong></div>
+      <div className="settingsInline"><span>Creative Brain</span><strong>{memoryOn?'On':'Off'}</strong></div>
+      <button onClick={()=>setMemoryOn(v=>!v)}>{memoryOn?'Turn Brain off':'Turn Brain on'}</button>
+      <button onClick={()=>{setShowSettings(false);setShowBrain(true)}}>Open Creative Brain</button>
+    </section>
+    <section className="settingsSection">
+      <div className="settingsSectionHead"><div><b>Account &amp; credits</b><span>{token?'Signed in':'Sign in to save projects and generate.'}</span></div></div>
+      {supabaseConfigured&&token&&<button onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true);setStatus('Signed out.')}}>Sign out</button>}
+      {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
+      <button onClick={()=>{setShowSettings(false);setNav('Billing')}}>Open Credits &amp; Billing</button>
+    </section>
+  </div>
+  <details className="settingsAdvanced">
+    <summary><span><b>Diagnostics</b><small>Provider, feature health and deployment details</small></span><i>⌄</i></summary>
+    <div className="settingsAdvancedBody">
+      <div className="settingsInline"><span>Frontend</span><strong>Cloudflare Worker</strong></div>
+      <div className="settingsInline"><span>Gateway</span><strong>Google Cloud Run</strong></div>
+      <div className="settingsInline"><span>Plan</span><strong>{billing?.subscription?.plan_slug||'Free'}</strong></div>
+      <details className="advancedDiagnostics"><summary>Provider &amp; feature health</summary>
+        {(providerInfo?.providers||[]).map(p=><div className="providerRow" key={p.key}><div><b>{p.key}</b><small>{(p.capabilities||[]).join(' • ')||p.capability||'generation'}</small></div><span className={p.configured?'providerGood':'providerOff'}>{p.configured?'Configured':'Not configured'}</span></div>)}
+        <div className="featureHealthPanel"><div className="featureHealthHead"><div><b>Feature health</b><span>Configuration and local runtime readiness. This does not spend provider credits.</span></div><span className="healthBadge">{featureHealth?'Live probe':'Waiting'}</span></div>{featureHealth?<div className="featureHealthGrid">{[['Text → Video','text_to_video'],['Text → Image','text_to_image'],['Image → Video','image_to_video'],['Video → Video','video_to_video'],['Source uploads','source_uploads'],['Photo enhance','photo_enhance'],['Background removal','background_remove'],['Auto-reframe','auto_reframe'],['Captions','captions'],['AI Editor','ai_editor'],['Gemini','gemini'],['Brain persistence','brain_persistence'],['MP4 render','render'],['Paystack','paystack'],['Google Pay','google_pay']].map(([label,key])=><div className="featureHealthItem" key={key}><span>{label}</span><b className={featureHealth.generation?.[key]??featureHealth[key]?'featureOn':'featureOff'}>{featureHealth.generation?.[key]??featureHealth[key]?'Ready':'Off'}</b></div>)}</div>:<div className="emptyState"><span>Sign in and connect the gateway to run the capability probe.</span></div>}</div>
+      </details>
     </div>
-    {settingsTab==='general'&&<div className="settingsGrid settingsGridSimple">
-      <div className="settingsSection"><b>Creator preferences</b><span>Small defaults that make the next project feel like your workspace.</span>
-        <div className="settingsInline"><span>Interface</span><strong>Creator</strong></div>
-        <div className="settingsInline"><span>Generation routing</span><strong>Automatic</strong></div>
-        <div className="settingsInline"><span>Creative Brain</span><strong>{memoryOn?'On':'Off'}</strong></div>
-        <button onClick={()=>setMemoryOn(v=>!v)}>{memoryOn?'Turn Brain off':'Turn Brain on'}</button>
-        <button onClick={()=>{setShowSettings(false);setShowBrain(true)}}>Open Creative Brain</button>
-      </div>
-      <div className="settingsSection"><b>Workspace status</b><span>{online?'Connected to the production gateway.':'Connect to the production gateway to generate.'}</span>
-        <div className="stats"><div><b>{billing?.subscription?.plan_slug||'Free'}</b><span>plan</span></div><div><b>{billing?.plans?.find(p=>p.slug===(billing?.subscription?.plan_slug||'free'))?.storage_gb||0.5} GB</b><span>storage</span></div><div><b>{brainProfile.learned_outputs||0}</b><span>learned</span></div></div>
-      </div>
-    </div>}
-    {settingsTab==='account'&&<div className="settingsGrid settingsGridSimple">
-      <div className="settingsSection"><b>Account</b><span>{token?'Signed in':'Not signed in'} • Authentication and account data stay separate from editor controls.</span>
-        {supabaseConfigured&&token&&<button onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true);setStatus('Signed out.')}}>Sign out</button>}
-        {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
-      </div>
-      <div className="settingsSection"><b>Credits &amp; billing</b><span>Plans, credits and purchases live in one place.</span>
-        <button onClick={()=>{setShowSettings(false);setNav('Billing')}}>Open Credits &amp; Billing</button>
-      </div>
-    </div>}
-    {settingsTab==='advanced'&&<div className="settingsGrid settingsGridSimple">
-      <div className="settingsSection"><b>Diagnostics</b><span>Use this page only when troubleshooting provider or deployment readiness.</span>
-        <details className="advancedDiagnostics"><summary>Provider &amp; feature health</summary>
-          {(providerInfo?.providers||[]).map(p=><div className="providerRow" key={p.key}><div><b>{p.key}</b><small>{(p.capabilities||[]).join(' • ')||p.capability||'generation'}</small></div><span className={p.configured?'providerGood':'providerOff'}>{p.configured?'Configured':'Not configured'}</span></div>)}
-          <div className="featureHealthPanel"><div className="featureHealthHead"><div><b>Feature health</b><span>Configuration and local runtime readiness. This does not spend provider credits.</span></div><span className="healthBadge">{featureHealth?'Live probe':'Waiting'}</span></div>{featureHealth?<div className="featureHealthGrid">{[['Text → Video','text_to_video'],['Text → Image','text_to_image'],['Image → Video','image_to_video'],['Video → Video','video_to_video'],['Source uploads','source_uploads'],['Photo enhance','photo_enhance'],['Background removal','background_remove'],['Auto-reframe','auto_reframe'],['Captions','captions'],['AI Editor','ai_editor'],['Gemini','gemini'],['Brain persistence','brain_persistence'],['MP4 render','render'],['Paystack','paystack'],['Google Pay','google_pay']].map(([label,key])=><div className="featureHealthItem" key={key}><span>{label}</span><b className={featureHealth.generation?.[key]??featureHealth[key]?'featureOn':'featureOff'}>{featureHealth.generation?.[key]??featureHealth[key]?'Ready':'Off'}</b></div>)}</div>:<div className="emptyState"><span>Sign in and connect the gateway to run the capability probe.</span></div>}</div>
-        </details>
-        <div className="settingsInline"><span>Frontend</span><strong>Cloudflare Worker</strong></div>
-        <div className="settingsInline"><span>Gateway</span><strong>Google Cloud Run</strong></div>
-      </div>
-      <div className="settingsSection"><b>Shortcuts</b><span>⌘/Ctrl + Enter generate • / focus prompt • ⌘/Ctrl + Z undo</span></div>
-    </div>}
-    <button className="primary" onClick={()=>setShowSettings(false)}>Done</button>
-  </div></div>}
-    {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
+  </details>
+  <button className="primary silkDone" onClick={()=>setShowSettings(false)}>Done</button>
+</div></div>}
+  {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
   {showPasswordReset&&<PasswordResetScreen
     onClose={()=>setShowPasswordReset(false)}
     onDone={()=>{setShowPasswordReset(false);setShowAuth(true);}}
