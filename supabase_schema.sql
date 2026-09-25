@@ -246,8 +246,6 @@ revoke all on table
   public.admin_2fa_sessions,
   public.admin_audit_log,
   public.admin_users,
-  public.billing_events,
-  public.credit_ledger,
   public.payment_events,
   public.system_prompts
 from anon, authenticated;
