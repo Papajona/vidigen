@@ -150,7 +150,7 @@ def _prepare_provider_request(provider_name: str, payload: dict) -> dict[str, An
 
 
 def _is_image_mode(mode: str) -> bool:
-    return str(mode or '').strip().lower() in ('text → image','text -> image','text to image')
+    return str(mode or '').strip().lower() in ('text → image','text -> image','text to image','avatar')
 
 SENTRY_DSN = os.getenv('SENTRY_DSN', '')
 if SENTRY_DSN:
@@ -1845,7 +1845,7 @@ async def _bill_generation(user: dict | None, req: Generate) -> dict:
     duration_seconds = int(str(req.duration).rstrip('s'))
     mode_text=str(req.mode or '').strip().lower()
     operation = 'image' if _is_image_mode(mode_text) else 'video'
-    if operation == 'video' and 'avatar' in mode_text:
+    if operation == 'image' and 'avatar' in mode_text:
         daily=await enforce_free_daily_feature(user['sub'],'avatar')
         if daily.get('plan') == 'free':
             return {'charged':0,'free_daily_feature':'avatar','daily_count':daily.get('count'),'daily_limit':daily.get('limit')}
