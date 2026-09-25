@@ -1741,8 +1741,8 @@ async def feature_health(request:Request,_=Depends(auth)):
         'generation': {
             'text_to_video': 'video' in caps,
             'text_to_image': 'image' in caps,
-            'image_to_video': 'image-to-video' in caps or 'video' in caps,
-            'video_to_video': 'video-to-video' in caps or 'video' in caps,
+            'image_to_video': 'image-to-video' in caps,
+            'video_to_video': 'video-to-video' in caps,
         },
         'source_uploads': r2,
         'photo_enhance': r2,
