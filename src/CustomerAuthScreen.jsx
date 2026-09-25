@@ -1,104 +1,148 @@
 import React, {useState} from 'react';
 import {supabase, supabaseConfigured} from './supabaseClient.js';
 
-/**
- * The customer-facing counterpart to what didn't exist before: a real sign-up/sign-in flow.
- * Everything else in this app (billing, credits, generation jobs) already requires a
- * Supabase-verified user_id — this is what actually gets a real customer one, rather than
- * expecting them to paste a raw access token into a settings field.
- */
+function friendlyAuthError(message=''){
+  const m=String(message||'').toLowerCase();
+  if(m.includes('invalid login credentials')) return 'The email or password is incorrect.';
+  if(m.includes('email not confirmed')) return 'Please confirm your email before signing in.';
+  if(m.includes('password') && m.includes('least')) return 'Use a stronger password and try again.';
+  if(m.includes('rate limit')) return 'Too many attempts. Please wait a moment and try again.';
+  if(m.includes('user already registered')) return 'That email is already registered. Try signing in instead.';
+  return message || 'We could not complete that request. Please try again.';
+}
+
 export default function CustomerAuthScreen({onAuthenticated, onClose}) {
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [mode,setMode]=useState('signin');
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [info,setInfo]=useState('');
+  const [awaitingConfirmation,setAwaitingConfirmation]=useState(false);
 
-  // No auth-state listener here on purpose — that now lives at the App level (main.jsx),
-  // registered once for the whole session so it keeps working after this component
-  // unmounts on sign-in. This component only needs to report its OWN sign-up/sign-in
-  // success immediately (better UX than waiting for that event to propagate); the OAuth
-  // redirect-return case is covered by the App-level listener picking up the new session.
-
-  if (!supabaseConfigured) {
-    return (
-      <div className="modalBack">
-        <div className="modal">
-          <div className="modalHead"><b>Sign-in not configured</b></div>
-          <p>This build is missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY at build time,
-             so customer sign-in can't work yet. This is a build configuration gap, not
-             something to work around with a manual token — set those two env vars and
-             rebuild.</p>
+  if(!supabaseConfigured){
+    return <div className="modalBack">
+      <div className="modal authModal">
+        <div className="modalHead">
+          <div><b>Vidigen account</b><small className="modalSub">Customer access is not configured</small></div>
+          <button className="secondary" type="button" aria-label="Close" onClick={onClose}>×</button>
         </div>
+        <p>Production sign-in needs the frontend Supabase URL and anonymous key at build time. This build is missing one or both values.</p>
+        <button className="primary" type="button" onClick={onClose}>Close</button>
       </div>
-    );
+    </div>;
   }
 
-  async function handleEmailAuth(e) {
+  const normalizedEmail=email.trim().toLowerCase();
+
+  function switchMode(next){
+    setMode(next); setError(''); setInfo(''); setAwaitingConfirmation(false);
+  }
+
+  async function resendConfirmation(){
+    if(!normalizedEmail){setError('Enter your email first.');return}
+    setBusy(true); setError(''); setInfo('');
+    try{
+      const {error:err}=await supabase.auth.resend({type:'signup',email:normalizedEmail});
+      if(err) throw err;
+      setInfo('A new confirmation email has been sent. Check your inbox and spam folder.');
+    }catch(err){setError(friendlyAuthError(err.message))}
+    finally{setBusy(false)}
+  }
+
+  async function handleEmailAuth(e){
     e.preventDefault();
-    setError(''); setInfo(''); setBusy(true);
-    try {
-      if (mode === 'signup') {
-        const {data, error: err} = await supabase.auth.signUp({email, password});
-        if (err) throw err;
-        if (data.session?.access_token) {
+    setError(''); setInfo('');
+    if(!normalizedEmail){setError('Enter your email address.');return}
+    if(password.length<8){setError('Password must be at least 8 characters.');return}
+    setBusy(true);
+    try{
+      if(mode==='signup'){
+        const {data,error:err}=await supabase.auth.signUp({
+          email:normalizedEmail,
+          password,
+          options:{emailRedirectTo:window.location.origin}
+        });
+        if(err) throw err;
+        if(data.session?.access_token){
           onAuthenticated(data.session.access_token);
-        } else {
-          // Email confirmation is on for this Supabase project — no session yet, and that's
-          // correct behavior, not a bug to route around.
-          setInfo('Account created — check your email to confirm before signing in.');
+          return;
         }
-      } else {
-        const {data, error: err} = await supabase.auth.signInWithPassword({email, password});
-        if (err) throw err;
+        setAwaitingConfirmation(true);
+        setInfo('Account created. Check your email to confirm your address, then sign in.');
+      }else{
+        const {data,error:err}=await supabase.auth.signInWithPassword({
+          email:normalizedEmail,
+          password
+        });
+        if(err) throw err;
+        if(!data.session?.access_token) throw new Error('Sign-in completed without a session. Please try again.');
         onAuthenticated(data.session.access_token);
       }
-    } catch (err) {
-      setError(err.message || 'Something went wrong.');
-    } finally {
+    }catch(err){
+      const msg=friendlyAuthError(err.message);
+      setError(msg);
+      if(String(err.message||'').toLowerCase().includes('email not confirmed')) setAwaitingConfirmation(true);
+    }finally{
       setBusy(false);
     }
   }
 
-  async function handleGoogle() {
-    setError('');
-    const {error: err} = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {redirectTo: window.location.origin},
-    });
-    if (err) setError(err.message);
-    // No further handling here — the redirect leaves the page, and onAuthStateChange above
-    // picks up the session on return.
+  async function sendRecovery(){
+    setError(''); setInfo('');
+    if(!normalizedEmail){setError('Enter your email first.');return}
+    setBusy(true);
+    try{
+      const {error:err}=await supabase.auth.resetPasswordForEmail(normalizedEmail,{
+        redirectTo:window.location.origin
+      });
+      if(err) throw err;
+      setInfo('Password recovery email sent. Open the link on this Vidigen site to set a new password.');
+    }catch(err){setError(friendlyAuthError(err.message))}
+    finally{setBusy(false)}
   }
 
-  return (
-    <div className="modalBack">
-      <div className="modal">
-        <div className="modalHead"><b>{mode === 'signup' ? 'Create your account' : 'Sign in'}</b><button className="secondary" type="button" aria-label="Close sign-in dialog" onClick={onClose}>×</button></div>
-        <p>{mode === 'signup' ? 'Free accounts include 500 MB storage, 5 avatar generations/day and 5 photo enhancements/day.' : 'Welcome back.'}</p>
-
-        <p className="muted" style={{marginBottom: 12}}>Sign in with your email and password. Google sign-in will be available after Google OAuth is enabled in Supabase.</p>
-
-        <form onSubmit={handleEmailAuth}>
-          <label>Email</label>
-          <input type="email" required value={email} onChange={e => setEmail(e.target.value)} />
-          <label>Password</label>
-          <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} />
-          {error && <p style={{color: 'var(--bad, #f87171)'}}>{error}</p>}
-          {info && <p className="muted">{info}</p>}
-          <button className="primary" type="submit" disabled={busy} style={{marginTop: 12}}>
-            {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
-          </button>
-        </form>
-
-        <button type="button" className="secondary" onClick={async()=>{setError('');setInfo('');if(!email){setError('Enter your email first.');return;}setBusy(true);try{const {error:err}=await supabase.auth.resetPasswordForEmail(email,{redirectTo: window.location.origin});if(err)throw err;setInfo('Password recovery email sent. Check your inbox and open the link on this site.');}catch(err){setError(err.message||'Could not send password recovery email.');}finally{setBusy(false)}}} style={{marginTop:10}}>Forgot password?</button>
-
-        <p className="muted" style={{marginTop: 14, cursor: 'pointer'}}
-           onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(''); setInfo(''); }}>
-          {mode === 'signup' ? 'Already have an account? Sign in' : "New here? Create an account"}
-        </p>
+  return <div className="modalBack">
+    <div className="modal authModal">
+      <div className="modalHead">
+        <div>
+          <b>{mode==='signup'?'Create your Vidigen account':'Welcome back'}</b>
+          <small className="modalSub">{mode==='signup'?'Create once, then keep your projects and credits in one account.':'Sign in to generate, save projects and use your account credits.'}</small>
+        </div>
+        <button className="secondary" type="button" aria-label="Close account dialog" onClick={onClose}>×</button>
       </div>
+
+      {mode==='signup'&&!awaitingConfirmation&&<div className="authBenefits">
+        <span>✓ 500 MB storage</span>
+        <span>✓ Account-scoped projects</span>
+        <span>✓ Credits &amp; billing</span>
+      </div>}
+
+      {awaitingConfirmation
+        ? <div className="authConfirm">
+            <div className="authConfirmIcon">✓</div>
+            <b>Check your email</b>
+            <p>{info||'We sent a confirmation link to your email address.'}</p>
+            <div className="authActions">
+              <button className="primary" type="button" onClick={()=>switchMode('signin')}>Continue to sign in</button>
+              <button className="secondary" type="button" disabled={busy} onClick={resendConfirmation}>{busy?'Sending…':'Resend confirmation'}</button>
+            </div>
+          </div>
+        : <form onSubmit={handleEmailAuth}>
+            <label>Email</label>
+            <input type="email" required autoComplete="email" inputMode="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
+            <label>Password</label>
+            <input type="password" required minLength={8} autoComplete={mode==='signup'?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters"/>
+            {error&&<p className="authError" role="alert">{error}</p>}
+            {info&&<p className="authInfo" role="status">{info}</p>}
+            <button className="primary" type="submit" disabled={busy}>{busy?'Please wait…':mode==='signup'?'Create account':'Sign in'}</button>
+            {mode==='signin'&&<button className="secondary authLinkButton" type="button" disabled={busy} onClick={sendRecovery}>Forgot password?</button>}
+          </form>
+      }
+
+      {!awaitingConfirmation&&<button type="button" className="authSwitch" onClick={()=>switchMode(mode==='signup'?'signin':'signup')}>
+        {mode==='signup'?'Already have an account? Sign in':"New to Vidigen? Create an account"}
+      </button>}
     </div>
-  );
+  </div>;
 }
