@@ -660,7 +660,6 @@ async function removeBackground(){
   </div>
   <div className="railSpacer"/>
   <div className="railUtilities">
-    <button className={`railItem ${nav==='Projects'?'active':''}`} onClick={()=>{setNav('Projects');setMobileInspectorOpen(true)}}><strong>□</strong><span>Projects</span></button>
     <button className={`railItem ${nav==='Billing'?'active':''}`} onClick={()=>{if(!token){setStatus('Sign in to view credits and billing.');setShowAuth(true);return}setNav('Billing');setMobileInspectorOpen(true)}}><strong>¤</strong><span>Credits</span></button>
     <button className="railItem" onClick={()=>setShowSettings(true)}><strong>⚙</strong><span>Settings</span></button>
   </div>
