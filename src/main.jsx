@@ -215,7 +215,16 @@ function App(){
    // Check the verified public FastAPI route on the production Cloud Run gateway.
    // /docs is intentionally public, already verified by CI, and avoids relying on the
    // Cloud Run /healthz path that has returned a front-door 404 in some environments.
-   let h=await fetch(`https://vidigen-gateway-xvpegaghzq-uc.a.run.app/docs?probe=${Date.now()}`,{cache:'no-store'});
+   let h;
+   const primaryGateway=gateway.replace(/\/$/,'');
+   const canonicalGateway=CANONICAL_GATEWAY_FALLBACK.replace(/\/$/,'');
+   try{
+     h=await fetch(`${primaryGateway}/docs?probe=${Date.now()}`,{cache:'no-store'});
+   }catch(primaryError){
+     if(primaryGateway!==canonicalGateway){
+       h=await fetch(`${canonicalGateway}/docs?probe=${Date.now()}`,{cache:'no-store'});
+     }else throw primaryError;
+   }
    if(!alive)return;
    setOnline(h.ok);
    // Provider configuration is protected, so only request it once a real Supabase
