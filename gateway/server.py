@@ -604,12 +604,10 @@ async def require_admin(request: Request, user=Depends(auth)):
     policy at all (see supabase_schema.sql) — so this check can only ever be performed here,
     server-side, with the service-role key.
 
-    2FA note: if an admin has enrolled 2FA (admin_2fa), a valid, unexpired session from
-    /api/admin/2fa/verify is ALSO required (via X-Admin-2FA-Session header) — the JWT alone
-    is no longer sufficient once 2FA is turned on for that account. If an admin has NOT
-    enrolled 2FA, they pass with just the JWT, same as before — 2FA here is opt-in per
-    admin, not yet mandatory account-wide. That's a real, stated gap, not a hidden one:
-    an admin who never enrolls 2FA is not actually protected by it."""
+    2FA note: ADMIN_2FA_REQUIRED is enforced account-wide. An admin must first enroll TOTP,
+    then present a valid, unexpired session from /api/admin/2fa/verify via the
+    X-Admin-2FA-Session header for every protected admin request. This keeps the dashboard
+    description and the actual authorization rule aligned."""
     if not isinstance(user, dict) or user.get('role') == 'gateway':
         raise HTTPException(403, 'Admin access requires a Supabase-authenticated admin account.')
     uid = user.get('sub')
