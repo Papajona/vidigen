@@ -12,7 +12,7 @@ def test_background_removal_status_returns_processing_for_owned_job():
     server.BACKGROUND_JOB_CACHE[job_id] = {
         "user_id": "local-gateway",
         "kind": "image",
-        "created_at": 0,
+        "created_at": __import__("time").time(),
     }
 
     async def call():
