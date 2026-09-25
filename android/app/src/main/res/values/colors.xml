@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- These three are referenced by AppTheme in styles.xml (@style/AppTheme, used as the
-         <application> theme in AndroidManifest.xml) but were never defined anywhere in the
-         project — a real AAPT2 "resource not found" build error, independent of the Kotlin
-         compile error. Values match the web app's existing accent/background palette in src/styles.css (accent #7c8cff, background #0d0e13) so the native shell doesn't
-         flash an unrelated color before the WebView takes over. -->
     <color name="colorPrimary">#0d0e13</color>
     <color name="colorPrimaryDark">#0a0a0c</color>
     <color name="colorAccent">#7c8cff</color>
