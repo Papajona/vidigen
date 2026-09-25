@@ -1514,6 +1514,37 @@ async def r2_presign(req: R2PresignRequest, request: Request, user=Depends(auth)
         'cdn_url': f'{cdn_base}/{safe_key}' if cdn_base else None,
     }
 
+async def _storage_limit_bytes(uid: str) -> int:
+    from gateway.billing import DEFAULT_PLANS, _get_plan, get_user_plan_slug
+    slug = await get_user_plan_slug(uid)
+    plan = await _get_plan(slug) or next((p for p in DEFAULT_PLANS if p['slug'] == slug), DEFAULT_PLANS[0])
+    return max(1, int(float(plan.get('storage_gb', 0.5)) * 1_000_000_000))
+
+
+async def _storage_used_bytes(uid: str) -> int:
+    if not persistence.enabled():
+        return 0
+    rows = await persistence.sb_request('GET', 'assets', params={'user_id': f'eq.{uid}', 'select': 'bytes'})
+    return sum(max(0, int(row.get('bytes') or 0)) for row in (rows or []))
+
+
+class StorageQuotaExceeded(Exception):
+    pass
+
+
+async def _enforce_storage_capacity(uid: str, additional_bytes: int) -> tuple[int, int]:
+    used = await _storage_used_bytes(uid)
+    limit = await _storage_limit_bytes(uid)
+    if used + max(0, int(additional_bytes)) > limit:
+        raise StorageQuotaExceeded('Storage limit reached. Remove existing media or upgrade your plan.')
+    return used, limit
+
+
+def _scoped_r2_key(uid: str, object_key: str) -> str:
+    cleaned = re.sub(r'\.\.+', '.', object_key.lstrip('/'))
+    return f'users/{uid}/' + cleaned
+
+
 class R2RegisterRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     object_key: str = Field(min_length=1, max_length=500)
@@ -1588,6 +1619,22 @@ async def r2_register(req: R2RegisterRequest, request: Request, user=Depends(aut
         'bytes': actual_bytes,
         'limit_bytes': (await _storage_limit_bytes(uid)) if persistence.enabled() else None,
         'used_bytes': ((await _storage_used_bytes(uid)) + actual_bytes) if persistence.enabled() else actual_bytes,
+    }
+
+
+@app.get('/api/storage/me')
+async def storage_me(request: Request, user=Depends(auth)):
+    uid = user.get('sub') if isinstance(user, dict) else None
+    if not uid:
+        raise HTTPException(401, 'Signed-in user required.')
+    used = await _storage_used_bytes(uid)
+    limit = await _storage_limit_bytes(uid)
+    return {
+        'used_bytes': used,
+        'limit_bytes': limit,
+        'used_mb': round(used / 1_000_000, 2),
+        'limit_mb': round(limit / 1_000_000, 2),
+        'percent': round((used / limit) * 100, 2) if limit else 100,
     }
 
 
