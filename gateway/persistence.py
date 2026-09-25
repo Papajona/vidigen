@@ -122,6 +122,21 @@ async def create_asset(user_id,project_id,kind,storage_key,mime_type=None,bytes_
     rows=await sb_request('POST','assets',{'user_id':user_id,'project_id':project_id,'kind':kind,'storage_key':storage_key,'mime_type':mime_type,'bytes':bytes_count,'provenance':provenance or {}})
     return rows[0]['id'] if rows else None
 
+async def create_utility_job(user_id: str, job_id: str, provider_job_id: str, kind: str) -> dict | None:
+    if not enabled(): return None
+    rows=await sb_request('POST','utility_jobs',{'id':job_id,'user_id':user_id,'provider_job_id':provider_job_id,'kind':kind,'status':'processing'})
+    return rows[0] if rows else None
+
+async def get_utility_job(user_id: str, job_id: str) -> dict | None:
+    if not enabled() or not user_id: return None
+    rows=await sb_request('GET','utility_jobs',params={'id':f'eq.{job_id}','user_id':f'eq.{user_id}','select':'*','limit':'1'})
+    return rows[0] if rows else None
+
+async def update_utility_job(user_id: str, job_id: str, **fields) -> dict | None:
+    if not enabled() or not user_id: return None
+    rows=await sb_request('PATCH','utility_jobs',fields,params={'id':f'eq.{job_id}','user_id':f'eq.{user_id}'})
+    return rows[0] if rows else None
+
 # --- Project persistence ------------------------------------------------------------------
 async def list_projects(user_id: str) -> list[dict]:
     if not enabled() or not user_id:
