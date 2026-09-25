@@ -1,0 +1,63 @@
+name: Sync and verify Android app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.ts"
+      - "android/**"
+      - ".github/workflows/android-sync.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: android-sync-production
+  cancel-in-progress: true
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - run: ./android/gradlew assembleDebug --no-daemon
+
+      - name: Commit synced web assets
+        shell: bash
+        run: |
+          set -e
+          if git diff --quiet -- android/app/src/main/assets/public android/app/src/main/assets/capacitor.config.json; then
+            echo "Android web assets are already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/assets/public android/app/src/main/assets/capacitor.config.json
+          git commit -m "chore: sync Android web assets [skip ci]"
+          git push
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidigen-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
