@@ -12,7 +12,7 @@ function friendlyAuthError(message=''){
 }
 
 export default function CustomerAuthScreen({onAuthenticated, onClose}) {
-  const [mode,setMode]=useState('signin');
+  const [mode,setMode]=useState('signup');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [busy,setBusy]=useState(false);
@@ -137,7 +137,7 @@ export default function CustomerAuthScreen({onAuthenticated, onClose}) {
           <p>{mode==='signup'?'A simple account for your Vidigen workspace.':'Access your projects, generations and credits.'}</p>
         </div>
 
-        <div className="authModeTabs" role="tablist" aria-label="Account access">
+        <div className="authModeTabs authModeTabsProminent" role="tablist" aria-label="Account access">
           <button type="button" className={mode==='signin'?'active':''} onClick={()=>switchMode('signin')}>Sign in</button>
           <button type="button" className={mode==='signup'?'active':''} onClick={()=>switchMode('signup')}>Create account</button>
         </div>
