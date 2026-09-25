@@ -1603,7 +1603,7 @@ async def feature_health(request:Request,_=Depends(auth)):
         },
         'source_uploads': r2,
         'photo_enhance': r2,
-        'background_remove': replicate,
+        'background_remove': bool(replicate and r2),
         'auto_reframe': bool(replicate and r2 and ffmpeg),
         'captions': bool(captions_installed and ffmpeg),
         'render': bool(r2 and ffmpeg and ffprobe and render_hosts),
