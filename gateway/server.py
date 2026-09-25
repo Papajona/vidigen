@@ -1421,13 +1421,19 @@ async def remove_background_endpoint(req: RemoveBackgroundRequest, request: Requ
         except StorageQuotaExceeded as e:
             raise HTTPException(413, str(e))
     elif result.job_id and uid:
-        # Keep the provider prediction associated with the caller so a long-running
-        # background-removal job can be polled instead of becoming a dead end.
-        BACKGROUND_JOB_CACHE[result.job_id]={
+        # Persist the provider job behind our own opaque job id so polling survives
+        # gateway restarts and never exposes provider identifiers as our API contract.
+        public_job_id=f'bg-{uuid.uuid4().hex}'
+        job_kind='background_remove_'+req.kind
+        if persistence.enabled():
+            await persistence.create_utility_job(uid,public_job_id,result.job_id,job_kind)
+        BACKGROUND_JOB_CACHE[public_job_id]={
             'user_id':uid,
             'kind':req.kind,
+            'provider_job_id':result.job_id,
             'created_at':time.time(),
         }
+        return {'status': result.status, 'output_url': durable, 'job_id': public_job_id}
     return {'status': result.status, 'output_url': durable, 'job_id': result.job_id}
 
 @app.get('/api/remove-background/status/{job_id}')
@@ -1437,11 +1443,21 @@ async def remove_background_status(job_id: str, request: Request, user=Depends(a
         raise HTTPException(400, 'Invalid background-removal job id.')
     uid=(user or {}).get('sub') if isinstance(user,dict) else None
     job=BACKGROUND_JOB_CACHE.get(job_id)
-    if not job or job.get('user_id') != uid:
+    if not job and persistence.enabled() and uid:
+        row=await persistence.get_utility_job(uid,job_id)
+        if row:
+            job={
+                'user_id':uid,
+                'kind':str(row.get('kind','background_remove_image')).replace('background_remove_',''),
+                'provider_job_id':row.get('provider_job_id'),
+                'created_at':time.mktime(__import__('datetime').datetime.fromisoformat(str(row.get('created_at')).replace('Z','+00:00')).timetuple()) if row.get('created_at') else time.time(),
+            }
+            BACKGROUND_JOB_CACHE[job_id]=job
+    if not job or job.get('user_id') != uid or not job.get('provider_job_id'):
         raise HTTPException(404, 'Background-removal job was not found or has expired.')
     from gateway import providers as _providers
     try:
-        result=await _providers.background_status(job_id, job.get('kind','image'))
+        result=await _providers.background_status(job.get('provider_job_id'), job.get('kind','image'))
     except _providers.ProviderError as e:
         raise HTTPException(502, str(e))
     status=str(result.status or 'starting').lower()
@@ -1452,6 +1468,8 @@ async def remove_background_status(job_id: str, request: Request, user=Depends(a
             image=job.get('kind','image')=='image',
         )
         BACKGROUND_JOB_CACHE.pop(job_id,None)
+        if persistence.enabled():
+            await persistence.update_utility_job(uid,job_id,status='completed',output_url=durable,completed_at=__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat())
         return {
             'status':'complete',
             'output_url':durable,
@@ -1459,9 +1477,12 @@ async def remove_background_status(job_id: str, request: Request, user=Depends(a
         }
     if status in ('failed','canceled','cancelled','error'):
         BACKGROUND_JOB_CACHE.pop(job_id,None)
+        error_message=(result.data or {}).get('error') or 'Background removal failed.'
+        if persistence.enabled():
+            await persistence.update_utility_job(uid,job_id,status='failed',error=error_message,completed_at=__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat())
         return {
             'status':'error',
-            'error':(result.data or {}).get('error') or 'Background removal failed.',
+            'error':error_message,
             'job_id':job_id,
         }
     # Expire orphaned utility jobs instead of retaining them indefinitely.
