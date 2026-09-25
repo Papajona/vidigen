@@ -4,13 +4,29 @@ import httpx
 
 os.environ.setdefault('VIDIGEN_GATEWAY_TOKEN', 'test-token')
 
-from gateway.server import app
+from gateway.server import app, Generate, _provider_candidates
 
 
 async def call(method, path, payload=None):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
         return await client.request(method, path, json=payload, headers={'Authorization': 'Bearer test-token'})
+
+
+def test_generate_accepts_provider_model_and_source_contracts():
+    req = Generate(prompt='cinematic product ad', mode='Image → Video', model='replicate', sourceUrl='https://cdn.example/source.jpg', sourceType='image')
+    assert req.model == 'replicate'
+    assert req.sourceType == 'image'
+
+
+def test_generate_rejects_missing_transform_source():
+    req = Generate(prompt='animate this image', mode='Image → Video', model='replicate')
+    try:
+        _provider_candidates('replicate', req)
+    except Exception as exc:
+        assert getattr(exc, 'status_code', None) == 400
+    else:
+        raise AssertionError('Image → Video must require a source image')
 
 
 def test_edit_plan_trim():
