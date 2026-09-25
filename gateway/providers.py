@@ -197,7 +197,7 @@ class ReplicateProvider(BaseGenerationProvider):
         # otherwise Auto Router can select Replicate for video and only fail later
         # when it discovers there is no video model to submit.
         self.capabilities = set()
-        if self.token and image_model_env:
+        if self.token and self.image_model:
             self.capabilities.add("image")
         if self.token and self.model:
             self.capabilities.update({"video", "image-to-video", "video-to-video"})
@@ -212,7 +212,7 @@ class ReplicateProvider(BaseGenerationProvider):
         self.model = video_model
         self.image_model = image_model or "black-forest-labs/flux-schnell"
         self.capabilities = set()
-        if token and image_model:
+        if token and self.image_model:
             self.capabilities.add("image")
         if token and video_model:
             self.capabilities.update({"video", "image-to-video", "video-to-video"})
