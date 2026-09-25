@@ -1600,10 +1600,7 @@ class AutoReframeRequest(BaseModel):
     target_aspect_h: int = Field(gt=0, le=100)
 
 
-class R2RegisterRequest(BaseModel):
-    model_config=ConfigDict(extra='forbid')
-    object_key: str = Field(min_length=1, max_length=500)
-    kind: str = Field(pattern=r'^(image|video|audio)
+@app.post('/api/auto-reframe')
 async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(auth)):
     """Subject-centered reframe to a target aspect ratio. Scope, stated plainly (see also
     gateway/reframe.py): this analyzes ONE representative frame's subject position and
