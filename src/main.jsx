@@ -665,6 +665,62 @@ function App(){
 </>}>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
  const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
+    {nav==='Effects'&&<div className="effectsPanel">
+      <div className="sectionCard">
+        <b>Edit selected asset</b>
+        <p>{activeClip?activeClip.title||'Selected asset':'Select an asset from the timeline or Production assets below.'}</p>
+        {!activeClip&&<div className="emptyState"><b>No asset selected</b><span>Choose a clip to unlock editing tools.</span></div>}
+        {activeClip&&<div className="effectsActions">
+          <button onClick={duplicateClip}>Duplicate</button>
+          <button onClick={splitClip}>Split</button>
+          <button className="danger" onClick={deleteClip}>Delete</button>
+        </div>}
+      </div>
+      {activeClip&&<div className="sectionCard">
+        <b>Media tools</b>
+        <div className="effectsActions">
+          {isImageMedia(activeClip)&&<button disabled={enhancingPhoto||!!(featureHealth&&!featureHealth.photo_enhance)} onClick={enhancePhoto}>{enhancingPhoto?'Enhancing…':'Enhance photo'}</button>}
+          {isImageMedia(activeClip)&&<button disabled={croppingPhoto} onClick={cropPhoto}>{croppingPhoto?'Cropping…':'Crop photo'}</button>}
+          {isImageMedia(activeClip)&&<button onClick={downloadPhoto}>Export photo</button>}
+          <button disabled={bgRemoving||!!(featureHealth&&!featureHealth.background_remove)} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button>
+          {!isImageMedia(activeClip)&&<button disabled={reframing||!!(featureHealth&&!featureHealth.auto_reframe)} onClick={autoReframe}>{reframing?'Reframing…':'Auto reframe'}</button>}
+        </div>
+        {isImageMedia(activeClip)&&<label>Crop aspect
+          <select value={cropAspect} onChange={e=>setCropAspect(e.target.value)}><option>Original</option>{RATIOS.filter(x=>x!=='21:9').map(x=><option key={x}>{x}</option>)}</select>
+        </label>}
+      </div>}
+      {activeClip&&<div className="sectionCard">
+        <b>Adjustments</b>
+        <div className="effectsControlGrid">
+          <label>Speed <input type="range" min="0.25" max="4" step="0.05" value={editor.speed} onChange={e=>patchClip({speed:Number(e.target.value)})}/><span>{Number(editor.speed).toFixed(2)}×</span></label>
+          <label>Volume <input type="range" min="0" max="2" step="0.05" value={editor.volume} onChange={e=>patchClip({volume:Number(e.target.value)})}/><span>{Math.round(Number(editor.volume)*100)}%</span></label>
+          <label>Brightness <input type="range" min="50" max="150" value={editor.brightness} onChange={e=>patchClip({brightness:Number(e.target.value)})}/><span>{editor.brightness}%</span></label>
+          <label>Contrast <input type="range" min="50" max="150" value={editor.contrast} onChange={e=>patchClip({contrast:Number(e.target.value)})}/><span>{editor.contrast}%</span></label>
+          <label>Saturation <input type="range" min="0" max="200" value={editor.saturation} onChange={e=>patchClip({saturation:Number(e.target.value)})}/><span>{editor.saturation}%</span></label>
+          <label>Blur <input type="range" min="0" max="12" step="0.5" value={editor.blur} onChange={e=>patchClip({blur:Number(e.target.value)})}/><span>{editor.blur}px</span></label>
+          <label>Rotation <input type="range" min="-180" max="180" value={editor.rotation} onChange={e=>patchClip({rotation:Number(e.target.value)})}/><span>{editor.rotation}°</span></label>
+          <label>Scale <input type="range" min="50" max="150" value={editor.scale} onChange={e=>patchClip({scale:Number(e.target.value)})}/><span>{editor.scale}%</span></label>
+          <label>Opacity <input type="range" min="0" max="100" value={editor.opacity} onChange={e=>patchClip({opacity:Number(e.target.value)})}/><span>{editor.opacity}%</span></label>
+        </div>
+        <div className="effectsActions"><button onClick={()=>patchClip({...DEFAULT_CLIP,overlay:activeClip.overlay||null})}>Reset adjustments</button></div>
+      </div>}
+      {activeClip&&<div className="sectionCard">
+        <b>Text overlay</b>
+        <label>Text <input value={overlay.text} onChange={e=>setOverlay(o=>({...o,text:e.target.value}))} placeholder="Add a title or CTA"/></label>
+        <div className="effectsInline">
+          <label>Size <input type="number" min="8" max="160" value={overlay.size} onChange={e=>setOverlay(o=>({...o,size:Number(e.target.value)||42}))}/></label>
+          <label>X <input type="number" min="0" max="100" value={overlay.x} onChange={e=>setOverlay(o=>({...o,x:Number(e.target.value)||0}))}/></label>
+          <label>Y <input type="number" min="0" max="100" value={overlay.y} onChange={e=>setOverlay(o=>({...o,y:Number(e.target.value)||0}))}/></label>
+        </div>
+        <div className="effectsActions"><button onClick={addOverlay}>Attach overlay</button><button onClick={()=>patchClip({overlay:null})}>Remove overlay</button></div>
+      </div>}
+      {activeClip&&<div className="sectionCard">
+        <b>AI Editor</b>
+        <p>Describe a safe timeline change in plain language.</p>
+        <textarea value={aiCommand} onChange={e=>setAiCommand(e.target.value)} placeholder="e.g. trim this clip to 3 seconds"/>
+        <button disabled={commandBusy||!aiCommand.trim()} onClick={runAICommand}>{commandBusy?'Applying…':'Apply AI edit'}</button>
+      </div>}
+    </div>}
     {nav==='Captions'&&<><div className="sectionCard"><b>Caption studio</b><p>{captions.length?`${captions.length} timed segments ready.`:(activeClip?'Select Auto captions to transcribe this clip.':'Add or select media to create captions.')}</p><button onClick={transcribe} disabled={(!audio&&!activeClip)||captioning}>{captioning?'Transcribing…':audio?'Transcribe audio':'Transcribe selected video'}</button><button onClick={downloadSrt} disabled={!captions.length}>Export SRT</button><label>Style</label><select value={captionStyle} onChange={e=>setCaptionStyle(e.target.value)}><option>Bold</option><option>Clean</option><option>Minimal</option></select></div><div className="captionList">{captions.slice(0,40).map((c,i)=><div key={i}><time>{c.start.toFixed(2)}s</time><span>{c.text}</span></div>)}</div></>}
     {nav==='Billing'&&<div className="sectionCard">
       <b>Vidigen Plans &amp; Credits</b>
