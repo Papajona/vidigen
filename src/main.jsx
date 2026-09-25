@@ -534,35 +534,35 @@ function App(){
    </main>
    <aside className="inspector">
     {nav==='Create'&&<>
-  <div className="inspectorTop"><div><b>Create</b><small className="modalSub">Describe what you want. Vidigen handles the production steps.</small></div><span className="tinyBadge">1 • CREATE</span></div>
-  <div className="createSteps"><span className="active"><b>1</b> Idea</span><span><b>2</b> Style</span><span><b>3</b> Generate</span></div>
-  <label className="sectionLabel">What are you making?</label>
-  <div className="modeGrid">{MODES.map(m=><button key={m} className={`mode \${mode===m?'active':''}`} onClick={()=>setMode(m)}>{m}</button>)}</div>
+  <div className="inspectorTop"><div><b>Create</b><small className="modalSub">One prompt, a few choices, then Generate.</small></div><span className="tinyBadge">DIRECTOR</span></div>
+  <label className="sectionLabel">Start with</label>
+  <div className="modeGrid">{MODES.map(m=><button key={m} className={"mode "+(mode===m?"active":"")} onClick={()=>setMode(m)}>{m}</button>)}</div>
   {generationSourceTypeForMode()&&<div className="sourceCard">
-    <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Use an uploaded file or a matching timeline asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
+    <div className="sourceHead"><div><b>{generationSourceTypeForMode()==='image'?'Source image':'Source video'}</b><small>Upload a matching source or use the selected asset.</small></div>{generationSource&&<button className="textButton" onClick={clearGenerationSource}>Remove</button>}</div>
     {generationSource
       ? <div className="sourcePreview">{generationSource.type==='image'?<img src={generationSource.preview} alt="" />:<video src={generationSource.preview} muted playsInline controls={false}/>}<div><b>{generationSource.name}</b><small>Ready for {mode}</small></div></div>
       : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected asset</button>}<span>or choose an asset from Media</span></div>}
     </div>}
-  <label className="sectionLabel">Your idea</label>
-  <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the subject, action, look and result you want…"/>
-  <div className="promptMeta"><span>Write naturally — Vidigen turns this into a production brief.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
-  <div className="promptChips"><button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with a bold opening hook, elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product ad</button><button type="button" onClick={()=>{setPrompt('Create a fast, energetic vertical social video with a strong 2-second hook, punchy cuts, captions and a memorable ending.');setRatio('9:16')}}>Social short</button><button type="button" onClick={()=>setPrompt('Create a cinematic story with consistent character identity, dramatic lighting, rich composition, deliberate camera movement and a satisfying visual payoff.')}>Cinematic</button></div>
-  <div className="promptActions"><button onClick={analyze}>Check idea</button><button onClick={improvePrompt}>Improve prompt</button></div>
-  {analysis&&<div className="analysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span><small>{(analysis.tags||[]).join(' • ')}</small></div>}
+  <label className="sectionLabel">Prompt</label>
+  <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the subject, action, style and result…"/>
+  <div className="promptMeta"><span>Natural language is enough.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
+  <div className="promptChips"><button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with a bold opening hook, elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product ad</button><button type="button" onClick={()=>{setPrompt('Create a fast, energetic vertical social video with a strong 2-second hook, punchy cuts, captions and a memorable ending.');setRatio('9:16')}}>Social</button><button type="button" onClick={()=>setPrompt('Create a cinematic story with consistent character identity, dramatic lighting, rich composition, deliberate camera movement and a satisfying visual payoff.')}>Cinematic</button></div>
+  <div className="promptActions"><button onClick={analyze}>Check idea</button><button onClick={improvePrompt}>Improve</button></div>
+  {analysis&&<div className="analysis compactAnalysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span></div>}
+  <div className="quickSettings">
+    <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
+    {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
+  </div>
   <details className="advancedSettings">
-    <summary><span>Fine-tune generation</span><small>Format, length, camera and model</small></summary>
+    <summary><span>More controls</span><small>Camera &amp; engine</small></summary>
     <div className="advancedBody">
-      <div className="twoFields"><div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div><div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div></div>
-      <label>Camera</label><select value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select>
+      {mode!=='Text → Image'&&<><label>Camera</label><select value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select></>}
       <label>Engine</label><select value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
-      {activeClip&&<button disabled={reframing||!activeClip||isImageMedia(activeClip)} onClick={autoReframe}>{reframing?'Reframing…':isImageMedia(activeClip)?'Auto-reframe is for video':'Auto-reframe selected clip'}</button>}
     </div>
   </details>
-  <div className="generationSummary"><div><span>{generationStateLabel==='Checking…'?'Checking generation capability':featureReadyForMode?'Ready to generate':'Generation unavailable'}</span><b>{mode} • {duration} • {ratio}</b></div><span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Provider ready':generationStateLabel==='Checking…'?'● Checking…':'● No compatible provider'}</span></div>
-  <button className="generate" disabled={generating} onClick={generate}>{generating?`Generating ${progress}%`:'Generate'}<small>{generating?'Vidigen is creating your result — you can keep watching the preview.':'Your result will appear in the canvas and timeline.'}</small></button>
-</>}
-    {nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
+  <div className="generationSummary simpleSummary"><div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode} {mode!=='Text → Image'?'• '+duration:''} • {ratio}</b></div><span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span></div>
+  <button className="generate" disabled={generating||!featureReadyForMode} onClick={generate}>{generating?'Generating '+progress+'%':'Generate'}<small>{generating?'Creating your result…':'Place the result on your canvas and timeline.'}</small></button>
+</>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
  const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
     {nav==='Text'&&<>
@@ -611,60 +611,48 @@ function App(){
   <section className="bottom"><div className="bottomHead"><b>Production assets</b><span>{clips.length} asset(s) in this project</span></div>{clips.length?<div className="cards">{clips.slice(0,12).map((c,i)=><button className="card" key={c.id} onClick={()=>{setActiveId(c.id);setNav('Effects')}}>{isImageMedia(c)?<img src={c.src} alt="" className="assetThumb"/>:<video src={c.src} muted preload="metadata"/>}<span><b>{c.title||`Shot ${i+1}`}</b><small>{c.kind||'Production asset'}</small></span></button>)}</div>:<div className="emptyState"><b>Your production assets will appear here</b><span>Generate or import media to begin.</span></div>}</section>
   <div className="feedback"><span>Teach the Brain from the latest result</span><button onClick={()=>rate(5)}>★ Excellent</button><button onClick={()=>rate(3)}>Good</button><button onClick={()=>rate(1)}>Needs work</button><button onClick={()=>setShowBrain(true)}>View Brain</button></div>
   {showBrain&&<div className="modalBack"><div className="modal wideModal"><div className="modalHead"><div><b>Vidigen Creative Brain</b><small className="modalSub">Persistent preference learning and output memory</small></div><button onClick={()=>setShowBrain(false)}>×</button></div><div className="stats"><div><b>{brainProfile.learned_outputs||history.length}</b><span>learned outputs</span></div><div><b>{brainProfile.feedback_count||0}</b><span>feedback signals</span></div><div><b>{(brainProfile.preferred_tags||profile.preferredTags||[]).length}</b><span>style preferences</span></div></div><div className="brainStatus"><span className="statusDot"/><div><b>{online?'Brain connected to server':'Local Brain only'}</b><small>{online?'Completed outputs and feedback can persist to your Vidigen account.':'Sign in and connect the production gateway to enable persistent server learning.'}</small></div></div><label>Learned style signals</label><div className="tags">{(brainProfile.preferred_tags||profile.preferredTags||[]).length?(brainProfile.preferred_tags||profile.preferredTags).map(t=><span key={t}>{t}</span>):<small>No high-confidence preferences yet. Rate completed work to teach the Brain.</small>}</div><label>How learning works</label><p className="hint">Each completed job can be analyzed into reusable creative metadata. Only explicit positive feedback influences preferred style signals. Vidigen does not silently retrain third-party foundation models.</p><button className="danger" onClick={()=>{setHistory([]);setBrainProfile({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});setStatus('Local creative memory cleared. Server Brain data remains account-scoped.')}}>Clear local memory</button></div></div>}
-  {showSettings&&<div className="modalBack"><div className="modal wideModal">
-    <div className="modalHead"><div><b>Settings</b><small className="modalSub">Keep creator settings simple. Technical controls live under Advanced.</small></div><button onClick={()=>setShowSettings(false)}>×</button></div>
+  {showSettings&&<div className="modalBack"><div className="modal wideModal settingsModal">
+    <div className="modalHead"><div><b>Settings</b><small className="modalSub">Keep the studio quiet. Creation controls stay in Create.</small></div><button onClick={()=>setShowSettings(false)}>×</button></div>
     <div className="settingsTabs settingsTabsSimple">
-      <button className={settingsTab==='general'?'active':''} onClick={()=>setSettingsTab('general')}>Workspace</button>
-      <button className={settingsTab==='ai'?'active':''} onClick={()=>setSettingsTab('ai')}>AI &amp; Generation</button>
+      <button className={settingsTab==='general'?'active':''} onClick={()=>setSettingsTab('general')}>Preferences</button>
       <button className={settingsTab==='account'?'active':''} onClick={()=>setSettingsTab('account')}>Account</button>
       <button className={settingsTab==='advanced'?'active':''} onClick={()=>setSettingsTab('advanced')}>Advanced</button>
     </div>
-    {settingsTab==='general'&&<div className="settingsGrid">
-      <div className="settingsSection"><b>Workspace</b><span>Your editor stays focused on the creative workflow. These settings affect this workspace only.</span>
-        <div className="settingsInline"><span>Connection</span><strong className={online?'okText':'badText'}>{online?'Online':'Offline'}</strong></div>
-        <div className="settingsInline"><span>Interface</span><strong>Creator mode</strong></div>
-        <div className="settingsInline"><span>Keyboard</span><strong>⌘/Ctrl shortcuts enabled</strong></div>
-      </div>
-      <div className="settingsSection"><b>Storage</b><span>{billing?.wallet?'Your account is connected to server-side billing.':'Open Credits to view your plan and storage quota.'}</span>
-        <div className="stats"><div><b>{billing?.subscription?.plan_slug||'Free'}</b><span>plan</span></div><div><b>{billing?.plans?.find(p=>p.slug===(billing?.subscription?.plan_slug||'free'))?.storage_gb||0.5} GB</b><span>quota</span></div><div><b>{brainProfile.learned_outputs||0}</b><span>learned outputs</span></div></div>
-      </div>
-    </div>}
-    {settingsTab==='ai'&&<div className="settingsGrid">
-      <div className="settingsSection"><b>Generation defaults</b><span>Start with simple controls. Fine-tuning remains available inside the Create panel when you need it.</span>
-        <div className="settingsInline"><span>Routing</span><strong>Auto</strong></div>
-        <div className="settingsInline"><span>Quality path</span><strong>Server controlled</strong></div>
-        <div className="settingsInline"><span>Fallback</span><strong>Automatic</strong></div>
-        <div className="settingsInline"><span>Safety</span><strong>Prompt moderation on</strong></div>
-      </div>
-      <div className="settingsSection"><b>Creative Brain</b><span>{brainProfile.learned_outputs||0} completed outputs analyzed • {brainProfile.feedback_count||0} feedback signals • {(brainProfile.preferred_tags||[]).length} learned preferences.</span>
-        <div className="tags">{(brainProfile.preferred_tags||[]).map(t=><span key={t}>{t}</span>)}</div>
+    {settingsTab==='general'&&<div className="settingsGrid settingsGridSimple">
+      <div className="settingsSection"><b>Creator preferences</b><span>Small defaults that make the next project feel like your workspace.</span>
+        <div className="settingsInline"><span>Interface</span><strong>Creator</strong></div>
+        <div className="settingsInline"><span>Generation routing</span><strong>Automatic</strong></div>
+        <div className="settingsInline"><span>Creative Brain</span><strong>{memoryOn?'On':'Off'}</strong></div>
+        <button onClick={()=>setMemoryOn(v=>!v)}>{memoryOn?'Turn Brain off':'Turn Brain on'}</button>
         <button onClick={()=>{setShowSettings(false);setShowBrain(true)}}>Open Creative Brain</button>
       </div>
-    </div>}
-    {settingsTab==='account'&&<div className="settingsGrid">
-      <div className="settingsSection"><b>Account</b><span>{token?'Signed in':'Not signed in'} • Your authentication session controls access to generation and account data.</span>
-        {supabaseConfigured&&token&&<button onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true);setStatus('Signed out.')}}>Sign out</button>}
+      <div className="settingsSection"><b>Workspace status</b><span>{online?'Connected to the production gateway.':'Connect to the production gateway to generate.'}</span>
+        <div className="stats"><div><b>{billing?.subscription?.plan_slug||'Free'}</b><span>plan</span></div><div><b>{billing?.plans?.find(p=>p.slug===(billing?.subscription?.plan_slug||'free'))?.storage_gb||0.5} GB</b><span>storage</span></div><div><b>{brainProfile.learned_outputs||0}</b><span>learned</span></div></div>
       </div>
-      <div className="settingsSection"><b>Credits &amp; billing</b><span>Plans, credit balance and purchases are kept together in the Credits area instead of mixing payment controls into the editing tools.</span>
+    </div>}
+    {settingsTab==='account'&&<div className="settingsGrid settingsGridSimple">
+      <div className="settingsSection"><b>Account</b><span>{token?'Signed in':'Not signed in'} • Authentication and account data stay separate from editor controls.</span>
+        {supabaseConfigured&&token&&<button onClick={async()=>{await supabase.auth.signOut();setToken('');setShowAuth(true);setStatus('Signed out.')}}>Sign out</button>}
+        {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
+      </div>
+      <div className="settingsSection"><b>Credits &amp; billing</b><span>Plans, credits and purchases live in one place.</span>
         <button onClick={()=>{setShowSettings(false);setNav('Billing')}}>Open Credits &amp; Billing</button>
       </div>
     </div>}
-    {settingsTab==='advanced'&&<div className="settingsGrid">
-      <div className="settingsSection"><b>Providers</b><span>Technical routing information for troubleshooting. Provider secrets never appear in the browser.</span>
-        {(providerInfo?.providers||[]).map(p=><div className="providerRow" key={p.key}><div><b>{p.key}</b><small>{(p.capabilities||[]).join(' • ')||p.capability||'generation'}</small></div><span className={p.configured?'providerGood':'providerOff'}>{p.configured?'Configured':'Not configured'}</span></div>)}
-        <div className="featureHealthPanel"><div className="featureHealthHead"><div><b>Feature health</b><span>Configuration and local runtime readiness. This does not spend provider credits.</span></div><span className="healthBadge">{featureHealth?'Live probe':'Waiting'}</span></div>{featureHealth?<div className="featureHealthGrid">{[['Text → Video','text_to_video'],['Text → Image','text_to_image'],['Image → Video','image_to_video'],['Video → Video','video_to_video'],['Source uploads','source_uploads'],['Photo enhance','photo_enhance'],['Background removal','background_remove'],['Auto-reframe','auto_reframe'],['Captions','captions'],['AI Editor','ai_editor'],['Gemini','gemini'],['Brain persistence','brain_persistence'],['MP4 render','render'],['Paystack','paystack'],['Google Pay','google_pay']].map(([label,key])=><div className="featureHealthItem" key={key}><span>{label}</span><b className={featureHealth.generation?.[key]??featureHealth[key]?'featureOn':'featureOff'}>{featureHealth.generation?.[key]??featureHealth[key]?'Ready':'Off'}</b></div>)}</div>:<div className="emptyState"><span>Sign in and connect the gateway to run the capability probe.</span></div>}</div>
-        {!providerInfo&&<div className="emptyState"><b>No provider status</b><span>Sign in and connect the production gateway to inspect providers.</span></div>}
-      </div>
-      <div className="settingsSection"><b>Deployment &amp; safety</b><span>Production code deploys through trusted CI. AI jobs run asynchronously through the gateway with bounded provider routing and moderation.</span>
+    {settingsTab==='advanced'&&<div className="settingsGrid settingsGridSimple">
+      <div className="settingsSection"><b>Diagnostics</b><span>Use this page only when troubleshooting provider or deployment readiness.</span>
+        <details className="advancedDiagnostics"><summary>Provider &amp; feature health</summary>
+          {(providerInfo?.providers||[]).map(p=><div className="providerRow" key={p.key}><div><b>{p.key}</b><small>{(p.capabilities||[]).join(' • ')||p.capability||'generation'}</small></div><span className={p.configured?'providerGood':'providerOff'}>{p.configured?'Configured':'Not configured'}</span></div>)}
+          <div className="featureHealthPanel"><div className="featureHealthHead"><div><b>Feature health</b><span>Configuration and local runtime readiness. This does not spend provider credits.</span></div><span className="healthBadge">{featureHealth?'Live probe':'Waiting'}</span></div>{featureHealth?<div className="featureHealthGrid">{[['Text → Video','text_to_video'],['Text → Image','text_to_image'],['Image → Video','image_to_video'],['Video → Video','video_to_video'],['Source uploads','source_uploads'],['Photo enhance','photo_enhance'],['Background removal','background_remove'],['Auto-reframe','auto_reframe'],['Captions','captions'],['AI Editor','ai_editor'],['Gemini','gemini'],['Brain persistence','brain_persistence'],['MP4 render','render'],['Paystack','paystack'],['Google Pay','google_pay']].map(([label,key])=><div className="featureHealthItem" key={key}><span>{label}</span><b className={featureHealth.generation?.[key]??featureHealth[key]?'featureOn':'featureOff'}>{featureHealth.generation?.[key]??featureHealth[key]?'Ready':'Off'}</b></div>)}</div>:<div className="emptyState"><span>Sign in and connect the gateway to run the capability probe.</span></div>}</div>
+        </details>
         <div className="settingsInline"><span>Frontend</span><strong>Cloudflare Worker</strong></div>
         <div className="settingsInline"><span>Gateway</span><strong>Google Cloud Run</strong></div>
-        <div className="settingsInline"><span>Provider fallback</span><strong>Automatic</strong></div>
-        <div className="settingsInline"><span>Job wait window</span><strong>Up to 15 minutes</strong></div>
       </div>
+      <div className="settingsSection"><b>Shortcuts</b><span>⌘/Ctrl + Enter generate • / focus prompt • ⌘/Ctrl + Z undo</span></div>
     </div>}
     <button className="primary" onClick={()=>setShowSettings(false)}>Done</button>
   </div></div>}
-  {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
+    {showExport&&<div className="modalBack"><div className="modal"><div className="modalHead"><b>Export master</b><button onClick={()=>setShowExport(false)}>×</button></div><p>Vidigen renders a real MP4: Android uses the native Media3 exporter; browser builds use the authenticated gateway render worker and durable R2 storage.</p><div className="stats"><div><b>{clips.length}</b><span>clips</span></div><div><b>{captions.length}</b><span>caption segments</span></div><div><b>{ratio}</b><span>aspect</span></div></div><button className="primary" disabled={exportBusy} onClick={exportProject}>{exportBusy?'Rendering…':'Export MP4'}</button></div></div>}
   {showPasswordReset&&<PasswordResetScreen
     onClose={()=>setShowPasswordReset(false)}
     onDone={()=>{setShowPasswordReset(false);setShowAuth(true);}}
