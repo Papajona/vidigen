@@ -733,23 +733,30 @@ async function removeBackground(){
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
     <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
-</>}>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={async e=>{
- const f=e.target.files?.[0];e.target.value='';
- if(!f)return;
- if(!token){setShowAuth(true);setStatus('Sign in to save production media to your project.');return}
- const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
- if(!mediaType){setStatus('Only image and video files are supported.');return}
- if(f.size>250*1024*1024){setStatus('Media files are limited to 250 MB.');return}
- setStatus('Saving media to your project…');
- try{
-   const key='media/import-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-   const reg=await uploadPersistentAsset(f,key,mediaType,f.name);
-   const c={id:'media-'+Date.now(),title:f.name,kind:'Imported media',src:reg.output_url,track:'Video',duration:5,mediaType,...DEFAULT_CLIP};
-   replaceClips([...clips,c]);setActiveId(c.id);
-   copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{});
-   setStatus(f.name+' added and saved to your project.');
- }catch(e){setStatus('Media import failed: '+e.message)}
-}}/>
+</>}>}{nav==='Media'&&<div className="sectionCard">
+      <b>Media library</b>
+      <p>Import your own production footage or images into the timeline.</p>
+      <input type="file" accept="video/*,image/*" onChange={async e=>{
+        const f=e.target.files?.[0];e.target.value='';
+        if(!f)return;
+        if(!token){setShowAuth(true);setStatus('Sign in to save production media to your project.');return}
+        const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
+        if(!mediaType){setStatus('Only image and video files are supported.');return}
+        if(f.size>250*1024*1024){setStatus('Media files are limited to 250 MB.');return}
+        setStatus('Saving media to your project…');
+        try{
+          const key='media/import-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+          const reg=await uploadPersistentAsset(f,key,mediaType,f.name);
+          const c={id:'media-'+Date.now(),title:f.name,kind:'Imported media',src:reg.output_url,track:'Video',duration:5,mediaType,...DEFAULT_CLIP};
+          replaceClips([...clips,c]);setActiveId(c.id);
+          copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{});
+          setStatus(f.name+' added and saved to your project.');
+        }catch(e){setStatus('Media import failed: '+e.message)}
+      }}/>
+      {clips.length
+        ? <div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>
+        : <div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}
+    </div>}
     {nav==='Billing'&&<div className="sectionCard">
       <b>Vidigen Plans &amp; Credits</b>
       <p>Subscriptions use monthly credits so premium video generations remain cost-controlled. Prices and credit budgets are managed server-side.</p>
