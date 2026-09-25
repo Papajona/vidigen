@@ -33,6 +33,22 @@ create table if not exists public.brain_datasets (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.utility_jobs (
+  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider_job_id text not null,
+  kind text not null check (kind in ('background_remove_image','background_remove_video')),
+  status text not null default 'processing',
+  output_asset_id uuid references public.assets(id) on delete set null,
+  output_url text,
+  error text,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+alter table public.utility_jobs enable row level security;
+create policy "own utility jobs" on public.utility_jobs for select using (auth.uid()=user_id);
+revoke all on table public.utility_jobs from anon, authenticated;
+
 alter table public.projects enable row level security; alter table public.assets enable row level security;
 alter table public.generation_jobs enable row level security; alter table public.brain_feedback enable row level security; alter table public.brain_datasets enable row level security;
 create policy "own projects" on public.projects for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
