@@ -86,6 +86,7 @@ WHISPER_CACHE={}
 CAPTION_PROVIDER=os.getenv('CAPTION_PROVIDER','local').lower()
 WHISPER_MODEL=os.getenv('WHISPER_MODEL','small')
 JOB_CACHE={}
+BACKGROUND_JOB_CACHE={}
 LEARNED_OUTPUTS=set()
 SUPABASE_JWT_ISSUER=os.getenv('SUPABASE_JWT_ISSUER','').rstrip('/')
 SUPABASE_JWT_AUD=os.getenv('SUPABASE_JWT_AUD','authenticated')
@@ -1398,9 +1399,58 @@ async def remove_background_endpoint(req: RemoveBackgroundRequest, request: Requ
     if not result.output_url and result.status not in ('starting', 'processing'):
         raise HTTPException(502, 'Background removal did not return an output.')
     durable=result.output_url
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
     if result.output_url:
-        durable=await _persist_provider_output(result.output_url, (user or {}).get('sub') if isinstance(user,dict) else None, image=req.kind=='image')
+        durable=await _persist_provider_output(result.output_url, uid, image=req.kind=='image')
+    elif result.job_id and uid:
+        # Keep the provider prediction associated with the caller so a long-running
+        # background-removal job can be polled instead of becoming a dead end.
+        BACKGROUND_JOB_CACHE[result.job_id]={
+            'user_id':uid,
+            'kind':req.kind,
+            'created_at':time.time(),
+        }
     return {'status': result.status, 'output_url': durable, 'job_id': result.job_id}
+
+@app.get('/api/remove-background/status/{job_id}')
+async def remove_background_status(job_id: str, request: Request, user=Depends(auth)):
+    """Poll a Replicate background-removal prediction that outlived the initial request."""
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', job_id):
+        raise HTTPException(400, 'Invalid background-removal job id.')
+    uid=(user or {}).get('sub') if isinstance(user,dict) else None
+    job=BACKGROUND_JOB_CACHE.get(job_id)
+    if not job or job.get('user_id') != uid:
+        raise HTTPException(404, 'Background-removal job was not found or has expired.')
+    from gateway import providers as _providers
+    try:
+        result=await _providers.background_status(job_id, job.get('kind','image'))
+    except _providers.ProviderError as e:
+        raise HTTPException(502, str(e))
+    status=str(result.status or 'starting').lower()
+    if status in ('succeeded','completed','successful','complete') and result.output_url:
+        durable=await _persist_provider_output(
+            result.output_url,
+            uid,
+            image=job.get('kind','image')=='image',
+        )
+        BACKGROUND_JOB_CACHE.pop(job_id,None)
+        return {
+            'status':'complete',
+            'output_url':durable,
+            'job_id':job_id,
+        }
+    if status in ('failed','canceled','cancelled','error'):
+        BACKGROUND_JOB_CACHE.pop(job_id,None)
+        return {
+            'status':'error',
+            'error':(result.data or {}).get('error') or 'Background removal failed.',
+            'job_id':job_id,
+        }
+    # Expire orphaned utility jobs instead of retaining them indefinitely.
+    if time.time()-float(job.get('created_at',time.time())) > 1800:
+        BACKGROUND_JOB_CACHE.pop(job_id,None)
+        raise HTTPException(410, 'Background-removal job expired. Please start it again.')
+    return {'status':'processing','job_id':job_id}
 
 class R2PresignRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
