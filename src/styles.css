@@ -598,3 +598,227 @@ body{background:#0b0d11}
   .timelineButtons button:nth-child(n+6){display:none}
   .feedback{height:58px;overflow:auto;white-space:nowrap}.feedback span{min-width:120px}
 }
+
+
+/* V15 — creator-first visual refresh
+   Purpose: stronger hierarchy, quieter chrome, clearer feature states, and a more
+   professional editing surface without changing the application behavior. */
+:root{
+  --accent:#7c8cff;
+  --accent-2:#a78bfa;
+  --accent-soft:rgba(124,140,255,.12);
+  --panel:#11141b;
+  --panel-2:#171b24;
+  --panel-3:#0d1016;
+  --border:rgba(255,255,255,.075);
+  --text-dim:rgba(238,240,246,.56);
+}
+body{background:#090b10}
+.app{background:#090b10}
+.topbar{
+  background:rgba(13,16,22,.94);
+  backdrop-filter:blur(18px);
+  border-bottom-color:rgba(255,255,255,.065);
+}
+.brandMark{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  box-shadow:0 8px 22px rgba(124,140,255,.22);
+}
+.brand span{letter-spacing:-.02em}
+.enginePill{background:rgba(255,255,255,.018)}
+.enginePill.online{color:#8ce6b4;border-color:rgba(140,230,180,.28)}
+.export{
+  box-shadow:0 8px 22px rgba(124,140,255,.18);
+  background:linear-gradient(135deg,#7080ff,#8f79ff);
+}
+.editor{grid-template-columns:68px minmax(0,1fr) 400px}
+.rail{
+  background:#0f1218;
+  padding:11px 6px;
+}
+.railItem{
+  position:relative;
+  color:rgba(244,246,251,.42);
+  transition:background .15s ease,color .15s ease,transform .15s ease;
+}
+.railItem:hover{transform:translateY(-1px)}
+.railItem.active{
+  background:linear-gradient(180deg,rgba(124,140,255,.14),rgba(124,140,255,.06));
+  color:#cdd3ff;
+}
+.railItem.active:before{
+  content:"";position:absolute;left:-6px;top:11px;bottom:11px;width:2px;border-radius:8px;background:var(--accent);
+}
+.center{background:#0b0e14}
+.previewHeader{
+  background:#0e1117;
+  border-bottom-color:rgba(255,255,255,.06);
+}
+.previewActions button,.timelineButtons button{
+  background:#131720;
+  border-color:rgba(255,255,255,.07);
+}
+.stage{
+  background:
+   radial-gradient(680px 380px at 50% 42%,rgba(103,117,194,.12),transparent 65%),
+   radial-gradient(460px 260px at 50% 90%,rgba(124,140,255,.05),transparent 70%),
+   #07090d;
+}
+.videoFrame{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  box-shadow:0 26px 90px rgba(0,0,0,.58),0 0 0 1px rgba(255,255,255,.025);
+}
+.emptyCanvas{
+  border:1px solid rgba(255,255,255,.07);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)),
+    #0d1016;
+  box-shadow:0 28px 70px rgba(0,0,0,.28);
+}
+.emptyCanvasContent{padding:36px}
+.eyebrow{color:#aab4ff!important;letter-spacing:.16em}
+.emptyCanvasContent h1{letter-spacing:-.04em;font-size:34px}
+.miniHint{
+  display:inline-flex!important;align-items:center;gap:8px;
+  margin-top:14px!important;padding:9px 12px;border-radius:9px;
+  background:rgba(124,140,255,.08);border:1px solid rgba(124,140,255,.16);
+  color:#bcc5ff!important;
+}
+.inspector{
+  background:#10131a;
+  border-left-color:rgba(255,255,255,.065);
+  padding:14px 15px 20px;
+}
+.inspectorTop{padding-bottom:4px}
+.inspectorTop div>b{font-size:13px}
+.sectionLabel{color:rgba(244,246,251,.38)!important;font-weight:800!important}
+.modeGrid{gap:8px}
+.mode{
+  background:#141820;
+  border:1px solid rgba(255,255,255,.065);
+  min-height:52px;
+  color:rgba(244,246,251,.72);
+}
+.mode:hover{border-color:rgba(124,140,255,.28);background:#171b25}
+.mode.active{
+  color:#edf0ff;
+  border-color:rgba(124,140,255,.48);
+  background:linear-gradient(180deg,rgba(124,140,255,.14),rgba(124,140,255,.07));
+  box-shadow:inset 0 0 0 1px rgba(124,140,255,.07);
+}
+.sourceCard{
+  background:linear-gradient(180deg,rgba(124,140,255,.075),rgba(255,255,255,.012));
+  border-color:rgba(124,140,255,.18);
+}
+.prompt{
+  background:#0b0e13;
+  border-color:rgba(255,255,255,.08);
+  min-height:128px!important;
+  padding:13px!important;
+  font-size:13px!important;
+}
+.prompt:focus{border-color:rgba(124,140,255,.55)!important;box-shadow:0 0 0 3px rgba(124,140,255,.08)}
+.promptMeta{padding-top:4px;color:rgba(244,246,251,.34)}
+.promptMeta kbd{
+  padding:3px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.025);color:rgba(244,246,251,.5);
+}
+.promptChips{gap:6px}
+.promptChips button{
+  background:#141820;border:1px solid rgba(255,255,255,.055);
+  color:rgba(244,246,251,.55);border-radius:999px!important;
+}
+.promptChips button:hover{color:#e9ecff;border-color:rgba(124,140,255,.22)}
+.promptActions button{background:#131720!important}
+.analysis,.directorCard,.sectionCard,.settingsNote{
+  background:#13171f;
+  border-color:rgba(255,255,255,.065);
+  box-shadow:none;
+}
+.sectionCard>b{font-size:12px;letter-spacing:.01em}
+.generate{
+  background:linear-gradient(135deg,#7283ff,#8e78ff)!important;
+  box-shadow:0 12px 28px rgba(124,140,255,.16);
+  border:1px solid rgba(255,255,255,.09);
+}
+.generate:hover{filter:brightness(1.04)}
+.generationSummary{
+  background:linear-gradient(135deg,rgba(124,140,255,.08),rgba(167,139,250,.035));
+  border-color:rgba(124,140,255,.16);
+}
+.featureNotice{
+  margin-top:10px;padding:12px;border-radius:11px;
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(255,255,255,.06);
+}
+.featureNotice>div{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.featureNotice b{font-size:11px}.featureNotice>div>span{
+  font-size:9px;color:#b8c0ff;padding:4px 7px;border-radius:999px;
+  border:1px solid rgba(124,140,255,.18);background:rgba(124,140,255,.07)
+}
+.featureNotice p{margin:7px 0 0;font-size:10px;line-height:1.55;color:rgba(244,246,251,.42)}
+.featureHealthPanel{
+  margin-top:12px;padding:11px;border-radius:11px;
+  background:#0d1016;border:1px solid rgba(255,255,255,.06);
+}
+.featureHealthHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.featureHealthHead b{font-size:11px}.featureHealthHead span{display:block;margin-top:3px;font-size:9px;color:rgba(244,246,251,.34);line-height:1.45}
+.healthBadge{
+  flex:none;padding:4px 7px;border-radius:999px;font-size:8px;
+  color:#bfc7ff;border:1px solid rgba(124,140,255,.18);background:rgba(124,140,255,.06)
+}
+.featureHealthGrid{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;margin-top:10px;
+}
+.featureHealthItem{
+  display:flex;justify-content:space-between;gap:6px;align-items:center;
+  padding:7px 8px;border-radius:8px;background:rgba(255,255,255,.018);
+}
+.featureHealthItem span{
+  font-size:9px;color:rgba(244,246,251,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.featureHealthItem b{font-size:8px;flex:none}
+.featureOn{color:#7fe0aa}.featureOff{color:#e89090}
+.timelinePanel{background:#0d1016}
+.timelineTop{background:#0f1218}
+.timelineBody{background:#0d1016}
+.ruler{background:#0c0f14}
+.row{border-bottom-color:rgba(255,255,255,.045)}
+.clip{
+  background:linear-gradient(180deg,#7181ff,#5f70ef)!important;
+  border-color:rgba(255,255,255,.12)!important;
+}
+.clip.selected{box-shadow:0 0 0 2px rgba(124,140,255,.28)}
+.textClip,.audioClip{opacity:.92}
+.feedback{
+  background:#0e1117;
+  border-top-color:rgba(255,255,255,.06);
+}
+.feedback button{background:#141820;border-color:rgba(255,255,255,.06)}
+.feedback button:hover{border-color:rgba(124,140,255,.2);background:rgba(124,140,255,.06)}
+.modalBack{backdrop-filter:blur(8px);background:rgba(0,0,0,.58)!important}
+.modal{
+  background:#11151d!important;
+  border-color:rgba(255,255,255,.08)!important;
+  box-shadow:0 30px 100px rgba(0,0,0,.46)!important;
+}
+.settingsTabs button{
+  background:#141820!important;
+  border-color:rgba(255,255,255,.06)!important;
+}
+.settingsTabs button.active{
+  background:rgba(124,140,255,.11)!important;
+  color:#cbd2ff!important;border-color:rgba(124,140,255,.18)!important
+}
+.providerGood{color:#83dfa9!important}.providerOff{color:#ea9292!important}
+@media(max-width:900px){
+  .editor{grid-template-columns:60px minmax(0,1fr)}
+  .inspector{padding:13px}
+}
+@media(max-width:700px){
+  .topbar{box-shadow:0 4px 24px rgba(0,0,0,.14)}
+  .emptyCanvasContent{padding:24px}
+  .emptyCanvasContent h1{font-size:28px}
+  .featureHealthGrid{grid-template-columns:1fr}
+}
