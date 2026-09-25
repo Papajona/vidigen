@@ -2524,3 +2524,9 @@ button,select,textarea,input{outline:none}
   .railGroup .railItem,.railUtilities .railItem{min-width:50px!important;width:50px!important}
   .railSpacer{display:none!important}
 }
+
+
+/* Final mobile navigation consolidation */
+@media(max-width:700px){
+  .mobileNav{display:none!important}
+}
