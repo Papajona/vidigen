@@ -572,7 +572,7 @@ function App(){
  }
 
  const filter=`brightness(${editor.brightness}%) contrast(${editor.contrast}%) saturate(${editor.saturation}%) blur(${editor.blur}px)`;
- const isImageMedia=(c)=>!!c&&(c.mediaType==='image'||String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||'')));
+ const isImageMedia=(c)=>{if(!c)return false;if(c.mediaType==='image')return true;if(c.mediaType==='video')return false;return String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||''));};
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
  const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
  const featureReadyForMode=mode==='Text → Image' ? (featureHealth ? featureHealth.generation?.text_to_image !== false : true) : (featureHealth ? (mode==='Image → Video'?featureHealth.generation?.image_to_video:mode==='Video → Video'?featureHealth.generation?.video_to_video:featureHealth.generation?.text_to_video) : availableModels.length>1);
