@@ -363,7 +363,21 @@ class RenderOverlay(BaseModel):
 class RenderClip(BaseModel):
     model_config=ConfigDict(extra='forbid')
     uri: str = Field(min_length=8, max_length=4000)
-    mediaType: str = Field(default='video', pattern=r'^(video|image)
+    mediaType: str = Field(default='video', pattern=r'^(video|image)$')
+    trimStartMs: int = Field(default=0, ge=0, le=86_400_000)
+    trimEndMs: int | None = Field(default=None, ge=1, le=86_400_000)
+    speed: float = Field(default=1, ge=0.25, le=4)
+    volume: float = Field(default=1, ge=0, le=2)
+    brightness: float = Field(default=100, ge=50, le=150)
+    contrast: float = Field(default=100, ge=50, le=150)
+    saturation: float = Field(default=100, ge=0, le=200)
+    blur: float = Field(default=0, ge=0, le=12)
+    rotation: float = Field(default=0, ge=-180, le=180)
+    scale: float = Field(default=100, ge=50, le=150)
+    opacity: float = Field(default=100, ge=0, le=100)
+    overlay: RenderOverlay | None = None
+
+class RenderRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     ratio: str = Field(default='16:9', pattern=r'^(16:9|9:16|1:1|4:5|21:9)$')
     clips: list[RenderClip] = Field(min_length=1, max_length=MAX_RENDER_CLIPS)
@@ -1621,6 +1635,8 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
         billing_receipt=await _bill_generation(user, req)
         request_payload=req.model_dump()
         request_payload['_billing']=billing_receipt
+        request_payload['_provider_candidates']=provider_candidates
+        request_payload['_provider_attempts']=[]
         request_payload['_provider_candidates']=list(provider_candidates)
         request_payload['_provider_attempts']=[]
         job_id=None
@@ -1786,11 +1802,11 @@ async def _refund_generation_billing(user_id: str|None, billing_receipt: dict|No
         raise HTTPException(503, f'No configured provider supports {req.mode}. Configure an image/transform provider in the provider registry.')
     if req.sourceType and req.sourceType != 'video':
         raise HTTPException(400, f'{req.mode} requires a video-capable local workflow.')
-    billing_receipt=await _bill_generation(user, req)
-    request_payload['_billing']=billing_receipt
     if not WORKFLOW.exists():
         await _refund_generation_billing(user_id, billing_receipt, 'local_workflow_missing')
         raise HTTPException(503,'workflow_api.json is missing. Export an API-format workflow from ComfyUI.')
+    billing_receipt=await _bill_generation(user, req)
+    request_payload['_billing']=billing_receipt
     workflow=json.loads(WORKFLOW.read_text(encoding='utf-8'))
     duration=int(req.duration[:-1]); width,height={'16:9':(1024,576),'9:16':(576,1024),'1:1':(1024,1024),'4:5':(896,1120),'21:9':(1344,576)}[req.ratio]
     values={'PROMPT':req.prompt,'NEGATIVE_PROMPT':'low quality, watermark, distorted motion, flicker, broken anatomy','WIDTH':width,'HEIGHT':height,'DURATION':duration,'SEED':uuid.uuid4().int % 2147483647}
