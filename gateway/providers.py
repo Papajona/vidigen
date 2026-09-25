@@ -382,7 +382,8 @@ class ManifestHTTPProvider(BaseGenerationProvider):
         }
 
     def configured(self) -> bool:
-        return bool(self.submit_url and (not self.token_env or os.getenv(self.token_env, "")))
+        submit_available = bool(self.submit_url or any(str(v).strip() for v in self.submit_urls.values()))
+        return bool(submit_available and (not self.token_env or os.getenv(self.token_env, "")))
 
     def model_for(self, payload: dict) -> str:
         operation = _operation_capability(payload.get("mode"))
