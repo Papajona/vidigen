@@ -1,4 +1,55 @@
-<!doctype html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-    <meta name="theme-color" content="#0a0a0c"/>
-    <link rel="manifest" href="/manifest.webmanifest"/><meta name="theme-color" content="#0b0b0d"/><title>Vidigen AI Studio</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script><script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
-  </body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <meta name="theme-color" content="#0a0a0c"/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <title>Vidigen AI Studio</title>
+  <script>
+    (() => {
+      const RESET_KEY = 'vidigen-cache-recovery-v2';
+      const bootError = (message) => {
+        const render = () => {
+          if (document.getElementById('vidigen-boot-error')) return;
+          const el = document.createElement('div');
+          el.id = 'vidigen-boot-error';
+          el.style.cssText = 'min-height:100vh;display:grid;place-items:center;padding:32px;background:#0d0e13;color:#eef0f6;font:16px/1.5 system-ui,sans-serif';
+          el.innerHTML = '<div style="max-width:620px"><h2 style="margin:0 0 10px">Vidigen is starting…</h2><p style="margin:0;color:rgba(238,240,246,.72)">The app hit a browser loading error. Refresh once to recover the latest production build.</p><pre style="margin-top:16px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:10px;white-space:pre-wrap;color:#fda4af;background:#15161e">' +
+            String(message || 'Unknown startup error').slice(0,1000).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) +
+            '</pre><button onclick="location.reload()" style="margin-top:16px;padding:10px 14px;border:0;border-radius:8px;background:#4f7cff;color:white;font-weight:700;cursor:pointer">Reload Vidigen</button></div>';
+          document.body.appendChild(el);
+        };
+        if (document.body) render(); else document.addEventListener('DOMContentLoaded', render, {once:true});
+      };
+      window.addEventListener('error', e => bootError(e.error?.stack || e.message), true);
+      window.addEventListener('unhandledrejection', e => bootError(e.reason?.stack || e.reason?.message || String(e.reason || 'Unhandled promise rejection')), true);
+
+      // Recover browsers that still hold an older Vidigen service worker/cache.
+      // This runs once per browser session after this deployment, then the current
+      // service worker is registered normally below.
+      if ('serviceWorker' in navigator && !sessionStorage.getItem(RESET_KEY)) {
+        navigator.serviceWorker.getRegistrations().then(async registrations => {
+          if (!registrations.length) return;
+          sessionStorage.setItem(RESET_KEY, '1');
+          await Promise.allSettled(registrations.map(r => r.unregister()));
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.allSettled(keys.filter(k => k.toLowerCase().includes('vidigen')).map(k => caches.delete(k)));
+          }
+          window.location.reload();
+        }).catch(() => {});
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>
