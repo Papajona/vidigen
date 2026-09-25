@@ -644,9 +644,9 @@ async function removeBackground(){
  const filter=`brightness(${editor.brightness}%) contrast(${editor.contrast}%) saturate(${editor.saturation}%) blur(${editor.blur}px)`;
  const isImageMedia=(c)=>{if(!c)return false;if(c.mediaType==='image')return true;if(c.mediaType==='video')return false;return String(c.kind||'').toLowerCase().includes('image')||/\.(png|jpe?g|webp|gif|avif)$/i.test(String(c.title||''));};
  const requestedCapability=mode==='Text → Image'?'image':mode==='Image → Video'?'image-to-video':mode==='Video → Video'?'video-to-video':'video';
- const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability||(requestedCapability!=='image'&&c==='video'))).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
+ const availableModels=[['auto','Auto Router'],...((providerInfo?.providers||[]).filter(p=>p.configured&&p.key!=='local'&&(p.capabilities||[]).some(c=>c===requestedCapability)).map(p=>[p.key,String(p.key).replace(/[-_]+/g,' ').replace(/\b\w/g,m=>m.toUpperCase())]))];
  const featureReadyForMode=featureHealth ? (mode==='Text → Image' ? featureHealth.generation?.text_to_image === true : mode==='Image → Video' ? featureHealth.generation?.image_to_video === true : mode==='Video → Video' ? featureHealth.generation?.video_to_video === true : featureHealth.generation?.text_to_video === true) : false;
- const generationStateLabel=featureHealth ? (featureReadyForMode?'Ready':'Unavailable') : (token&&online?'Checking…':'Ready');
+ const generationStateLabel=!token ? 'Sign in' : featureHealth ? (featureReadyForMode?'Ready':'Unavailable') : (online?'Checking…':'Offline');
  const availabilityDotClass=!featureHealth ? 'okText' : featureReadyForMode?'okText':'badText';
  const newProject=()=>{if(generating)return;clearGenerationSource();setClips([]);setActiveId(null);setCaptions([]);setAudio(null);setAnalysis(null);setOverlay({text:'',size:42,x:50,y:82,bold:true});setStatus('New project ready.');setNav('Create')};
  return <div className="app">
@@ -727,7 +727,7 @@ async function removeBackground(){
   {analysis&&<div className="analysis compactAnalysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span></div>}
   <div className="generationSummary simpleSummary silkSummary">
     <div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode}{mode!=='Text → Image'?' • '+duration:''} • {ratio}</b></div>
-    <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span>
+    <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':generationStateLabel==='Sign in'?'● Sign in':'● Unavailable'}</span>
   </div>
   <button className="generate silkGenerate" disabled={generating || (!!token && (!online || !featureHealth || !featureReadyForMode))} onClick={generate}>
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
