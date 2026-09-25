@@ -544,15 +544,29 @@ function App(){
       : <div className="sourceDrop"><label className="uploadSourceButton"><input type="file" hidden accept={generationSourceTypeForMode()==='image'?'image/*':'video/*'} onChange={e=>chooseGenerationSource(e.target.files?.[0])}/>{generationSourceTypeForMode()==='image'?'Choose image':'Choose video'}</label>{current&&((generationSourceTypeForMode()==='image'&&isImageMedia(current))||(generationSourceTypeForMode()==='video'&&!isImageMedia(current)))&&<button className="textButton" onClick={()=>setGenerationSource({file:null,type:generationSourceTypeForMode(),name:current.title||'Selected asset',preview:current.src})}>Use selected asset</button>}<span>or choose an asset from Media</span></div>}
     </div>}
   <label className="sectionLabel">Prompt</label>
-  <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the subject, action, style and result…"/>
+  <textarea className="prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={mode==='Text → Image'?'Describe the image you want…':'Describe what should happen in the video…'}/>
   <div className="promptMeta"><span>Natural language is enough.</span><kbd>Ctrl/⌘ + Enter</kbd></div>
-  <div className="promptChips"><button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with a bold opening hook, elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product ad</button><button type="button" onClick={()=>{setPrompt('Create a fast, energetic vertical social video with a strong 2-second hook, punchy cuts, captions and a memorable ending.');setRatio('9:16')}}>Social</button><button type="button" onClick={()=>setPrompt('Create a cinematic story with consistent character identity, dramatic lighting, rich composition, deliberate camera movement and a satisfying visual payoff.')}>Cinematic</button></div>
-  <div className="promptActions"><button onClick={analyze}>Check idea</button><button onClick={improvePrompt}>Improve</button></div>
+  <div className="promptChips compactChips">
+    <button type="button" onClick={()=>{setPrompt('Create a premium cinematic product ad with a bold opening hook, elegant close-ups, controlled camera motion and a clear final CTA.');setMode('Text → Video')}}>Product</button>
+    <button type="button" onClick={()=>{setPrompt('Create a fast, energetic vertical social video with a strong opening hook, punchy cuts, captions and a memorable ending.');setRatio('9:16')}}>Social</button>
+    <button type="button" onClick={()=>setPrompt('Create a cinematic scene with consistent subject identity, refined lighting, rich composition and a satisfying visual payoff.')}>Cinematic</button>
+  </div>
+
+  <details className="promptTools">
+    <summary>AI assist <small>Optional</small></summary>
+    <div className="promptToolBody">
+      <button onClick={analyze}>Check idea</button>
+      <button onClick={improvePrompt}>Improve prompt</button>
+    </div>
+  </details>
+
   {analysis&&<div className="analysis compactAnalysis"><b>{analysis.type||'video'}</b><span>{analysis.summary||'Ready for production.'}</span></div>}
+
   <div className="quickSettings">
     <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
     {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
   </div>
+
   <details className="advancedSettings">
     <summary><span>More controls</span><small>Camera &amp; engine</small></summary>
     <div className="advancedBody">
@@ -560,8 +574,15 @@ function App(){
       <label>Engine</label><select value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
     </div>
   </details>
-  <div className="generationSummary simpleSummary"><div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode} {mode!=='Text → Image'?'• '+duration:''} • {ratio}</b></div><span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span></div>
-  <button className="generate" disabled={generating||!featureReadyForMode} onClick={generate}>{generating?'Generating '+progress+'%':'Generate'}<small>{generating?'Creating your result…':'Place the result on your canvas and timeline.'}</small></button>
+
+  <div className="generationSummary simpleSummary">
+    <div><span>{generationStateLabel==='Checking…'?'Checking':featureReadyForMode?'Ready':'Unavailable'}</span><b>{mode}{mode!=='Text → Image'?' • '+duration:''} • {ratio}</b></div>
+    <span className={availabilityDotClass}>{generationStateLabel==='Ready'?'● Ready':generationStateLabel==='Checking…'?'● Checking':'● Unavailable'}</span>
+  </div>
+  <button className="generate" disabled={generating||!featureReadyForMode} onClick={generate}>
+    {generating?'Generating '+progress+'%':'Generate'}
+    <small>{generating?'Creating your result…':'Create and place it on your timeline.'}</small>
+  </button>
 </>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
  const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
