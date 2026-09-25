@@ -2492,3 +2492,35 @@ button,select,textarea,input{outline:none}
   .authFormIntro h2{font-size:26px}
   .authBenefits{grid-template-columns:1fr!important;gap:7px!important}
 }
+
+
+/* V12 audit hardening — mobile navigation/panel accessibility */
+.inspectorTopActions{display:flex;align-items:center;gap:7px}
+.mobileInspectorClose{display:none}
+.mobileInspectorClose.standalone{display:none}
+.authTopButton{display:inline-flex!important}
+@media(max-width:900px){
+  .inspector{position:fixed!important;right:0!important;top:56px!important;bottom:40px!important;
+    width:min(390px,calc(100vw - 18px))!important;z-index:30!important;
+    transform:translateX(105%);transition:transform .2s ease!important;
+    box-shadow:-22px 0 70px rgba(0,0,0,.48)!important}
+  .inspector.mobileOpen{transform:translateX(0)!important}
+  .mobileInspectorClose.standalone{
+    display:grid!important;position:sticky!important;top:8px!important;left:calc(100% - 36px)!important;
+    place-items:center!important;width:30px!important;height:30px!important;z-index:20!important;
+    margin:-2px 8px -30px auto!important;border-radius:9px!important;
+    background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.08)!important;
+    color:#eef0f6!important;font-size:20px!important;line-height:1!important}
+}
+@media(max-width:700px){
+  .topActions .ghost:not(.export):not(.authTopButton),.enginePill{display:none!important}
+  .authTopButton{display:inline-flex!important;min-height:30px!important;padding:6px 9px!important;font-size:10px!important}
+  .rail{
+    overflow-x:auto!important;overflow-y:hidden!important;justify-content:flex-start!important;
+    gap:4px!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
+  .rail::-webkit-scrollbar{display:none!important}
+  .railGroup,.railUtilities{display:flex!important;flex-direction:row!important;align-items:center!important;
+    flex:0 0 auto!important;gap:2px!important;padding:0!important;border:0!important}
+  .railGroup .railItem,.railUtilities .railItem{min-width:50px!important;width:50px!important}
+  .railSpacer{display:none!important}
+}
