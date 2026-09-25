@@ -1404,3 +1404,206 @@ body{overflow:hidden}
 .authSwitch{width:100%;margin-top:14px!important;padding:9px 4px!important;color:#bfc7ff!important;font-size:9px!important;font-weight:700}
 .authError{margin:9px 0!important;padding:9px 10px;border-radius:9px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.14);color:#f59a9a!important;font-size:9px!important;line-height:1.5}
 .authInfo{margin:9px 0!important;padding:9px 10px;border-radius:9px;background:rgba(154,165,255,.05);border:1px solid rgba(154,165,255,.10);color:#c8d0ff!important;font-size:9px!important;line-height:1.5}
+
+/* V19 — Silk studio polish
+   Refined proportions, softer glass surfaces, clearer create hierarchy, less control noise. */
+:root{
+  --silk-white:#f4f5f8;
+  --silk-text-soft:rgba(244,245,248,.58);
+  --silk-lavender:#b6bfff;
+  --silk-lilac:#d0b8ff;
+  --silk-glass:rgba(255,255,255,.026);
+  --silk-glass-2:rgba(255,255,255,.042);
+}
+*{box-sizing:border-box}
+.app{
+  grid-template-rows:54px minmax(0,1fr) 164px 124px 38px!important;
+  background:
+    radial-gradient(720px 420px at 54% 6%,rgba(182,191,255,.045),transparent 70%),
+    radial-gradient(560px 300px at 86% 85%,rgba(208,184,255,.028),transparent 72%),
+    #07090d!important;
+}
+.topbar{height:54px!important;padding:0 14px!important}
+.brandMark{width:27px!important;height:27px!important;border-radius:9px!important}
+.editor{grid-template-columns:56px minmax(0,1fr) 320px!important}
+.rail{padding:7px 5px!important}
+.railItem{min-height:46px!important;border-radius:11px!important}
+.center{border-right:1px solid rgba(255,255,255,.05)!important}
+.previewHeader{height:40px!important;padding:0 13px!important}
+.previewActions{gap:5px!important}
+.previewActions button{min-width:29px!important;height:28px!important}
+.stage{
+  padding:16px!important;
+  background:
+    radial-gradient(560px 320px at 50% 46%,rgba(182,191,255,.055),transparent 70%),
+    #06080c!important;
+}
+.videoFrame{border-radius:19px!important}
+.emptyCanvas{
+  width:min(640px,90%)!important;
+  border-radius:24px!important;
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.035),rgba(255,255,255,.012))!important;
+  border-color:rgba(255,255,255,.065)!important;
+}
+.emptyCanvasContent h1{font-size:32px!important}
+.emptyCanvasContent p{font-size:11px!important;line-height:1.75!important}
+.inspector{
+  padding:12px!important;
+  background:
+    linear-gradient(180deg,rgba(14,18,24,.985),rgba(10,13,18,.985))!important;
+}
+.inspectorTop{padding-bottom:7px!important}
+.inspectorTop div>b{font-size:13px!important}
+.inspectorTop .modalSub{margin-top:3px!important}
+.sectionLabel{margin:10px 0 6px!important;font-size:8px!important;letter-spacing:.15em!important}
+.silkModes{grid-template-columns:1fr 1fr!important;gap:6px!important}
+.silkModes .mode{
+  min-height:62px!important;
+  padding:9px 10px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  gap:3px!important;
+  text-align:left!important;
+}
+.silkModes .modeTitle{font-size:10px!important;font-weight:750!important;letter-spacing:-.01em}
+.silkModes .mode small{
+  display:block!important;
+  color:rgba(244,245,248,.30)!important;
+  font-size:8px!important;
+  line-height:1.35!important;
+}
+.silkModes .mode.active .modeTitle{color:#fff!important}
+.silkModes .mode.active small{color:rgba(230,233,255,.56)!important}
+.silkSource{margin-top:8px!important}
+.createPromptHead{
+  display:flex!important;align-items:flex-end!important;justify-content:space-between!important;
+}
+.createPromptHead .sectionLabel{margin-bottom:5px!important}
+.createPromptHead>span{
+  margin-bottom:6px!important;
+  color:rgba(244,245,248,.25)!important;
+  font-size:8px!important;
+}
+.silkPrompt{
+  min-height:132px!important;
+  border-radius:16px!important;
+  background:
+    radial-gradient(360px 120px at 20% 0%,rgba(182,191,255,.045),transparent 75%),
+    #0b0f15!important;
+}
+.silkPrompt:focus{
+  border-color:rgba(182,191,255,.32)!important;
+  box-shadow:0 0 0 3px rgba(182,191,255,.05)!important;
+}
+.promptMeta{padding:6px 2px 0!important}
+.compactChips{gap:5px!important}
+.compactChips button{
+  padding:6px 9px!important;
+  font-size:8px!important;
+  color:rgba(244,245,248,.42)!important;
+  background:rgba(255,255,255,.018)!important;
+}
+.silkQuickSettings{
+  margin-top:8px!important;
+  padding:7px!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:6px!important;
+  background:rgba(255,255,255,.016)!important;
+  border-color:rgba(255,255,255,.05)!important;
+}
+.silkQuickSettings select{
+  min-height:34px!important;
+  padding:7px 9px!important;
+  font-size:9px!important;
+}
+.silkMore{margin-top:7px!important}
+.silkMore summary{padding:8px 1px!important}
+.silkMoreBody{
+  grid-template-columns:1fr 1fr!important;
+  gap:6px!important;
+}
+.silkOption{display:grid!important;gap:5px!important}
+.silkOption label{margin:0!important}
+.silkOption select{min-height:34px!important}
+.silkMoreBody>button{
+  min-height:34px!important;
+  border-radius:9px!important;
+  font-size:8px!important;
+}
+.silkSummary{
+  min-height:42px!important;
+  margin-top:7px!important;
+  padding:7px 9px!important;
+  border-radius:11px!important;
+}
+.silkSummary b{font-size:9px!important}
+.silkSummary span{font-size:8px!important}
+.silkGenerate{
+  margin-top:7px!important;
+  min-height:48px!important;
+  border-radius:14px!important;
+  background:linear-gradient(135deg,#9aa6ff 0%,#b99dff 100%)!important;
+  color:#fff!important;
+}
+.silkGenerate span{font-size:12px!important;font-weight:800!important;letter-spacing:-.01em}
+.silkGenerate small{font-size:8px!important;color:rgba(255,255,255,.68)!important}
+.generate:hover{transform:translateY(-1px)!important}
+.timelinePanel{
+  min-height:0!important;
+  background:#090c11!important;
+}
+.timelineTop{height:36px!important}
+.timelineBody{height:128px!important}
+.timelineButtons button{height:27px!important;padding:0 8px!important}
+.clip{height:28px!important}
+.bottom{
+  height:124px!important;
+  padding:0 12px!important;
+  background:
+    linear-gradient(180deg,rgba(10,13,18,.92),rgba(8,11,15,.96))!important;
+}
+.bottomHead{height:32px!important}
+.bottomHead b{font-size:9px!important}
+.cards{gap:7px!important}
+.card{
+  width:150px!important;
+  flex-basis:150px!important;
+  border-radius:11px!important;
+}
+.card video,.card .assetThumb{height:58px!important}
+.feedback{height:38px!important}
+.modalBack{background:rgba(2,4,8,.58)!important;backdrop-filter:blur(18px)!important}
+.settingsModal{width:min(600px,90vw)!important}
+.settingsModal .modalHead{padding-bottom:8px!important}
+.settingsModal .settingsTabsSimple{grid-template-columns:repeat(3,1fr)!important}
+.settingsModal .settingsTabsSimple button{min-height:34px!important;font-size:8px!important}
+.settingsModal .settingsGridSimple{gap:8px!important}
+.settingsModal .settingsSection{padding:10px!important}
+.settingsModal .settingsSection>b{font-size:10px!important}
+.settingsModal .settingsSection>span{font-size:8px!important;line-height:1.5!important}
+.settingsModal .settingsInline{padding:6px 0!important}
+.settingsModal .stats{margin-top:7px!important}
+.settingsModal .stats>div{padding:7px!important}
+.settingsModal .primary{min-height:38px!important;margin-top:9px!important}
+.settingsModal .advancedDiagnostics{margin-top:7px!important}
+.mobileNav{background:rgba(10,13,18,.92)!important;backdrop-filter:blur(20px)!important}
+@media(max-width:1100px){
+  .editor{grid-template-columns:52px minmax(0,1fr) 304px!important}
+}
+@media(max-width:900px){
+  .app{grid-template-rows:54px auto 172px 38px!important}
+  .editor{grid-template-columns:54px minmax(0,1fr)!important}
+  .timelineBody{height:136px!important}
+  .bottom{display:none!important}
+}
+@media(max-width:700px){
+  .app{grid-template-rows:54px auto 164px 54px!important}
+  .silkModes{grid-template-columns:1fr 1fr!important}
+  .silkModes .mode{min-height:58px!important}
+  .silkPrompt{min-height:116px!important}
+  .inspector{padding:10px!important}
+  .emptyCanvasContent h1{font-size:27px!important}
+}
