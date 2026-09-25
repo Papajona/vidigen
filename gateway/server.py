@@ -1571,6 +1571,49 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
             'subject_detected': subject_bbox is not None,
         }
 
+@app.get('/api/features/health')
+async def feature_health(request:Request,_=Depends(auth)):
+    """Return non-secret feature readiness for the signed-in studio.
+
+    This is a capability/configuration probe, not a paid-provider generation test. It
+    exposes only booleans and provider capability names, never secrets or raw credentials.
+    """
+    import shutil
+    inventory=provider_inventory()
+    configured=[p for p in inventory if p.get('configured')]
+    caps={c for p in configured for c in (p.get('capabilities') or [])}
+    r2=all(os.getenv(k,'') for k in ('R2_ENDPOINT','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET','R2_PUBLIC_BASE_URL'))
+    replicate=bool(os.getenv('REPLICATE_API_TOKEN',''))
+    captions_installed=True
+    try:
+        import faster_whisper  # noqa: F401
+    except Exception:
+        captions_installed=False
+    ffmpeg=bool(shutil.which('ffmpeg'))
+    ffprobe=bool(shutil.which('ffprobe'))
+    render_hosts=bool(os.getenv('VIDIGEN_RENDER_ALLOWED_HOSTS','').strip() or os.getenv('R2_PUBLIC_BASE_URL','').strip())
+    return {
+        'gateway': True,
+        'providers': {'configured': [p['key'] for p in configured], 'capabilities': sorted(caps)},
+        'generation': {
+            'text_to_video': 'video' in caps,
+            'text_to_image': 'image' in caps,
+            'image_to_video': 'image-to-video' in caps or 'video' in caps,
+            'video_to_video': 'video-to-video' in caps or 'video' in caps,
+        },
+        'source_uploads': r2,
+        'photo_enhance': r2,
+        'background_remove': replicate,
+        'auto_reframe': bool(replicate and r2 and ffmpeg),
+        'captions': bool(captions_installed and ffmpeg),
+        'render': bool(r2 and ffmpeg and ffprobe and render_hosts),
+        'ai_editor': bool(os.getenv('GROQ_API_KEY','')),
+        'gemini': bool(os.getenv('GEMINI_API_KEY','')),
+        'brain_persistence': persistence.enabled(),
+        'paystack': bool(os.getenv('PAYSTACK_SECRET_KEY','')),
+        'google_pay': False,
+    }
+
 @app.get('/api/providers')
 async def providers(request:Request,_=Depends(auth)):
     inventory=provider_inventory()
