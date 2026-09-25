@@ -171,7 +171,7 @@ function App(){
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
  const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false);
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
- const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
+ const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[enhancingPhoto,setEnhancingPhoto]=useState(false),[croppingPhoto,setCroppingPhoto]=useState(false),[cropAspect,setCropAspect]=useState('Original'),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
  const [generationSource,setGenerationSource]=useState(null);
  const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
  const [captions,setCaptions]=useState(()=>read('vidigen_captions',[])),[captioning,setCaptioning]=useState(false),[captionStyle,setCaptionStyle]=useState('Bold');
@@ -295,25 +295,63 @@ function App(){
    const required=generationSourceTypeForMode();
    if(generationSource && required!==generationSource.type) clearGenerationSource();
  },[mode]);
+ async function uploadEditorBlob(blob,objectKey){
+   if(!blob||!blob.size)throw new Error('No edited image was produced.');
+   const contentType=blob.type||'image/jpeg';
+   const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:objectKey,content_type:contentType})},token);
+   const pd=await presignRes.json().catch(()=>({}));
+   if(!presignRes.ok)throw new Error(pd.detail||'Cloud storage setup failed.');
+   if(!pd.upload_url||!pd.cdn_url)throw new Error('Cloud storage is not configured for edited media.');
+   const uploadRes=await fetch(pd.upload_url,{method:'PUT',body:blob,headers:{'Content-Type':contentType}});
+   if(!uploadRes.ok)throw new Error('Edited image upload failed.');
+   return pd.cdn_url;
+ }
  async function enhancePhoto(){
    if(!activeClip){setStatus('Select a photo first.');return}
-   setBgRemoving(true)
+   if(!isImageMedia(activeClip)){setStatus('Photo enhancement is for images only.');return}
+   setEnhancingPhoto(true);
    try{
-     const blob=await fetch(activeClip.src).then(r=>r.blob())
-     if(!blob.type.startsWith('image/'))throw new Error('Photo enhancement is for images only.')
-     setStatus('Uploading photo…')
-     const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:`enhance-src/${activeClip.id}-${Date.now()}${blob.type.includes('png')?'.png':'.jpg'}`,content_type:blob.type})},token)
-     if(!presignRes.ok){const e=await presignRes.json().catch(()=>({}));throw new Error(e.detail||'R2 upload setup failed.')}
-     const pd=await presignRes.json()
-     if(!pd.cdn_url)throw new Error('R2 public URL is not configured.')
-     await fetch(pd.upload_url,{method:'PUT',body:blob,headers:{'Content-Type':blob.type}})
-     setStatus('Enhancing photo…')
-     const r=await gatewayFetch(gateway,'/api/photo-enhance',{method:'POST',body:JSON.stringify({media_url:pd.cdn_url})},token)
-     const d=await r.json()
-     if(!d.output_url)throw new Error('No enhanced photo returned.')
-     const c={id:`enhanced-${Date.now()}`,title:`${activeClip.title||'Photo'} (enhanced)`,kind:'Imported media',src:d.output_url,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP}
-     replaceClips([...clips,c]);setActiveId(c.id);setStatus('Photo enhanced — added as a new clip.')
-   }catch(e){setStatus(`Photo enhancement failed: ${e.message}`)}finally{setBgRemoving(false)}
+     const blob=await fetch(activeClip.src).then(r=>r.blob());
+     if(!blob.type.startsWith('image/'))throw new Error('Photo enhancement is for images only.');
+     setStatus('Uploading photo…');
+     const cdn=await uploadEditorBlob(blob,'enhance-src/'+activeClip.id+'-'+Date.now()+(blob.type.includes('png')?'.png':'.jpg'));
+     setStatus('Enhancing photo…');
+     const r=await gatewayFetch(gateway,'/api/photo-enhance',{method:'POST',body:JSON.stringify({media_url:cdn})},token);
+     const d=await r.json();
+     if(!d.output_url)throw new Error('No enhanced photo returned.');
+     const edited={id:'enhanced-'+Date.now(),title:(activeClip.title||'Photo')+' (enhanced)',kind:'Enhanced photo',src:d.output_url,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP};
+     replaceClips([...clips,edited]);setActiveId(edited.id);setStatus('Photo enhanced — added as a new asset.');
+   }catch(e){setStatus('Photo enhancement failed: '+e.message)}finally{setEnhancingPhoto(false)}
+ }
+ async function cropPhoto(){
+   if(!activeClip||!isImageMedia(activeClip)){setStatus('Select a photo to crop.');return}
+   setCroppingPhoto(true);
+   try{
+     setStatus('Preparing crop…');
+     const blob=await fetch(activeClip.src).then(r=>r.blob());
+     const bitmap=await createImageBitmap(blob);
+     let targetW=bitmap.width,targetH=bitmap.height;
+     if(cropAspect!=='Original'){
+       const parts=cropAspect.split(':').map(Number),targetRatio=parts[0]/parts[1],sourceRatio=bitmap.width/bitmap.height;
+       if(sourceRatio>targetRatio)targetW=Math.max(1,Math.round(bitmap.height*targetRatio));else targetH=Math.max(1,Math.round(bitmap.width/targetRatio));
+     }
+     const sx=Math.round((bitmap.width-targetW)/2),sy=Math.round((bitmap.height-targetH)/2);
+     const canvas=document.createElement('canvas');canvas.width=targetW;canvas.height=targetH;
+     const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image editing is unavailable in this browser.');
+     ctx.drawImage(bitmap,sx,sy,targetW,targetH,0,0,targetW,targetH);bitmap.close?.();
+     const out=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not create cropped image.')),'image/jpeg',0.94));
+     setStatus('Saving cropped photo…');
+     const cdn=await uploadEditorBlob(out,'edited/crop-'+activeClip.id+'-'+Date.now()+'.jpg');
+     const edited={id:'cropped-'+Date.now(),title:(activeClip.title||'Photo')+' (cropped)',kind:'Cropped photo',src:cdn,track:'Video',duration:activeClip.duration||5,...DEFAULT_CLIP};
+     replaceClips([...clips,edited]);setActiveId(edited.id);setStatus('Photo cropped to '+cropAspect+'.');
+   }catch(e){setStatus('Photo crop failed: '+e.message)}finally{setCroppingPhoto(false)}
+ }
+ async function downloadPhoto(){
+   if(!activeClip||!isImageMedia(activeClip)){setStatus('Select a photo to export.');return}
+   try{
+     setStatus('Preparing photo export…');const res=await fetch(activeClip.src);if(!res.ok)throw new Error('Photo could not be fetched.');
+     const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(activeClip.title||'vidigen-photo').replace(/[^a-z0-9_-]+/gi,'-').toLowerCase()+'.jpg';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);setStatus('Photo exported.');
+   }catch(e){setStatus('Photo export failed: '+e.message)}
  }
  async function removeBackground(){
    if(!activeClip){setStatus('Select a clip first.');return}
@@ -644,7 +682,7 @@ function App(){
           </div>
         </div>
       </details>
-      <div className="sectionCard aiCommandCard"><b>AI Edit</b><span>Tell Vidigen what to change. Example: “trim the selected clip to 3 seconds” or “make this clip 1.5× faster.”</span><div className="aiCommandRow"><input value={aiCommand} onChange={e=>setAiCommand(e.target.value)} placeholder="Describe an edit…"/><button onClick={runAICommand} disabled={commandBusy||!aiCommand.trim()}>{commandBusy?'Working…':'Apply'}</button></div></div><div className="sectionCard"><b>Professional controls</b><div className="twoFields"><div><label>Trim in</label><input type="number" min="0" step=".1" value={editor.trimStart} onChange={e=>patchClip({trimStart:+e.target.value})}/></div><div><label>Trim out</label><input type="number" min="0" step=".1" value={editor.trimEnd} onChange={e=>patchClip({trimEnd:+e.target.value})}/></div></div><div className="twoFields"><div><label>Brightness</label><input type="range" min="50" max="150" value={editor.brightness} onChange={e=>patchClip({brightness:+e.target.value})}/></div><div><label>Contrast</label><input type="range" min="50" max="150" value={editor.contrast} onChange={e=>patchClip({contrast:+e.target.value})}/></div></div><div className="twoFields"><div><label>Saturation</label><input type="range" min="0" max="200" value={editor.saturation} onChange={e=>patchClip({saturation:+e.target.value})}/></div><div><label>Blur</label><input type="range" min="0" max="12" value={editor.blur} onChange={e=>patchClip({blur:+e.target.value})}/></div></div><label>Scale {editor.scale}%</label><input type="range" min="50" max="150" value={editor.scale} onChange={e=>patchClip({scale:+e.target.value})}/><label>Opacity {editor.opacity}%</label><input type="range" min="0" max="100" value={editor.opacity} onChange={e=>patchClip({opacity:+e.target.value})}/><label>Rotation {editor.rotation}°</label><input type="range" min="-180" max="180" value={editor.rotation} onChange={e=>patchClip({rotation:+e.target.value})}/><div className="audioButtons"><button onClick={splitClip}>Split</button><button onClick={duplicateClip}>Duplicate</button><button onClick={deleteClip}>Delete</button></div><div className="audioButtons"><button disabled={reframing||!activeClip||isImageMedia(activeClip)} onClick={autoReframe}>{reframing?'Reframing…':isImageMedia(activeClip)?'Auto-reframe is for video':'Auto-reframe'} </button><button disabled={bgRemoving||!activeClip} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button></div><div className="audioButtons"><button disabled={bgRemoving||!activeClip||!isImageMedia(activeClip)} onClick={enhancePhoto}>{bgRemoving?'Enhancing…':isImageMedia(activeClip)?'Enhance selected photo':'Select a photo to enhance'}</button></div>{activeClip&&<p className="hint">Background removal uploads this clip to your configured Cloudflare R2 bucket, then runs it through Replicate — needs R2 and REPLICATE_API_TOKEN set on the gateway.</p>}</div><div className="sectionCard"><b>Keyframes</b><p>Animate transform properties directly on the timeline.</p><button onClick={addKeyframe}>Add keyframe at playhead</button><button onClick={clearKeyframes}>Clear keyframes</button>{activeClip?.keyframes?.map((k,i)=><div className="keyframeRow" key={i}><span>{k.time.toFixed(2)}s</span><small>scale {k.scale}% • opacity {k.opacity}% • rot {k.rotation}°</small></div>)}</div></>}
+      {activeClip&&isImageMedia(activeClip)&&<div className="sectionCard photoEditCard"><b>Photo editing</b><span className="hint">Edit the selected photo without exposing video-only controls.</span><div className="audioButtons"><button disabled={enhancingPhoto||croppingPhoto} onClick={enhancePhoto}>{enhancingPhoto?'Enhancing…':'AI Enhance'}</button><select value={cropAspect} disabled={enhancingPhoto||croppingPhoto} onChange={e=>setCropAspect(e.target.value)}><option>Original</option><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option></select><button disabled={enhancingPhoto||croppingPhoto} onClick={cropPhoto}>{croppingPhoto?'Cropping…':'Crop'}</button><button disabled={enhancingPhoto||croppingPhoto} onClick={downloadPhoto}>Export photo</button></div><div className="audioButtons"><button disabled={bgRemoving||enhancingPhoto} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button></div></div>}<div className="sectionCard aiCommandCard"><b>AI Edit</b><span>Tell Vidigen what to change. Example: “trim the selected clip to 3 seconds” or “make this clip 1.5× faster.”</span><div className="aiCommandRow"><input value={aiCommand} onChange={e=>setAiCommand(e.target.value)} placeholder="Describe an edit…"/><button onClick={runAICommand} disabled={commandBusy||!aiCommand.trim()}>{commandBusy?'Working…':'Apply'}</button></div></div><div className="sectionCard"><b>Professional controls</b><div className="twoFields"><div><label>Trim in</label><input type="number" min="0" step=".1" value={editor.trimStart} onChange={e=>patchClip({trimStart:+e.target.value})}/></div><div><label>Trim out</label><input type="number" min="0" step=".1" value={editor.trimEnd} onChange={e=>patchClip({trimEnd:+e.target.value})}/></div></div><div className="twoFields"><div><label>Brightness</label><input type="range" min="50" max="150" value={editor.brightness} onChange={e=>patchClip({brightness:+e.target.value})}/></div><div><label>Contrast</label><input type="range" min="50" max="150" value={editor.contrast} onChange={e=>patchClip({contrast:+e.target.value})}/></div></div><div className="twoFields"><div><label>Saturation</label><input type="range" min="0" max="200" value={editor.saturation} onChange={e=>patchClip({saturation:+e.target.value})}/></div><div><label>Blur</label><input type="range" min="0" max="12" value={editor.blur} onChange={e=>patchClip({blur:+e.target.value})}/></div></div><label>Scale {editor.scale}%</label><input type="range" min="50" max="150" value={editor.scale} onChange={e=>patchClip({scale:+e.target.value})}/><label>Opacity {editor.opacity}%</label><input type="range" min="0" max="100" value={editor.opacity} onChange={e=>patchClip({opacity:+e.target.value})}/><label>Rotation {editor.rotation}°</label><input type="range" min="-180" max="180" value={editor.rotation} onChange={e=>patchClip({rotation:+e.target.value})}/><div className="audioButtons"><button onClick={splitClip}>Split</button><button onClick={duplicateClip}>Duplicate</button><button onClick={deleteClip}>Delete</button></div><div className="audioButtons"><button disabled={reframing||!activeClip||isImageMedia(activeClip)} onClick={autoReframe}>{reframing?'Reframing…':isImageMedia(activeClip)?'Auto-reframe is for video':'Auto-reframe'} </button><button disabled={bgRemoving||!activeClip} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button></div><div className="audioButtons"></div>{activeClip&&<p className="hint">Background removal uploads this clip to your configured Cloudflare R2 bucket, then runs it through Replicate — needs R2 and REPLICATE_API_TOKEN set on the gateway.</p>}</div><div className="sectionCard"><b>Keyframes</b><p>Animate transform properties directly on the timeline.</p><button onClick={addKeyframe}>Add keyframe at playhead</button><button onClick={clearKeyframes}>Clear keyframes</button>{activeClip?.keyframes?.map((k,i)=><div className="keyframeRow" key={i}><span>{k.time.toFixed(2)}s</span><small>scale {k.scale}% • opacity {k.opacity}% • rot {k.rotation}°</small></div>)}</div></>}
     {nav==='Captions'&&<><div className="sectionCard"><b>Caption studio</b><p>{captions.length?`${captions.length} timed segments ready.`:(activeClip?'Select Auto captions to transcribe this clip.':'Add or select media to create captions.')}</p><button onClick={transcribe} disabled={(!audio&&!activeClip)||captioning}>{captioning?'Transcribing…':audio?'Transcribe audio':'Transcribe selected video'}</button><button onClick={downloadSrt} disabled={!captions.length}>Export SRT</button><label>Style</label><select value={captionStyle} onChange={e=>setCaptionStyle(e.target.value)}><option>Bold</option><option>Clean</option><option>Minimal</option></select></div><div className="captionList">{captions.slice(0,40).map((c,i)=><div key={i}><time>{c.start.toFixed(2)}s</time><span>{c.text}</span></div>)}</div></>}
     {nav==='Billing'&&<div className="sectionCard">
       <b>Vidigen Plans &amp; Credits</b>
