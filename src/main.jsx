@@ -163,7 +163,7 @@ function App(){
  const [showAuth,setShowAuth]=useState(false);
  const [showPasswordReset,setShowPasswordReset]=useState(false);
  const [online,setOnline]=useState(false),[providerInfo,setProviderInfo]=useState(null),[featureHealth,setFeatureHealth]=useState(null),[status,setStatus]=useState('Ready'),[progress,setProgress]=useState(0);
- const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false);
+ const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false),[storage,setStorage]=useState(null);
  const [generating,setGenerating]=useState(false),[history,setHistory]=useState(()=>read('vidigen_learning_history',[]));
  const [projects,setProjects]=useState(()=>read('vidigen_projects',[]));
  const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]).filter(c=>c&&typeof c==='object'&&!String(c.src||'').startsWith('blob:')));
@@ -263,7 +263,7 @@ function App(){
  }
 })();return()=>{alive=false}},[gateway,token]);
  useEffect(()=>{if(!token||!online){setFeatureHealth(null);return}let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/features/health',{},token);if(alive)setFeatureHealth(await r.json())}catch{if(alive)setFeatureHealth(null)}})();return()=>{alive=false}},[token,online,gateway]);
- useEffect(()=>{if(nav!=='Billing'||!online||!token)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token))}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
+ useEffect(()=>{if(!token||!online){setStorage(null);return}let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/storage/me',{},token);if(alive)setStorage(await r.json())}catch{if(alive)setStorage(null)}})();return()=>{alive=false}},[token,online,gateway,clips.length]); useEffect(()=>{if(nav!=='Billing'||!online||!token)return; let alive=true; (async()=>{try{setBilling(await loadBillingData(gateway,token))}catch(e){if(alive)setStatus(e.message)}})(); return()=>{alive=false}},[nav,online,gateway,token]);
  useEffect(()=>{if(!token||!online)return;let alive=true;(async()=>{try{const r=await gatewayFetch(gateway,'/api/brain/profile',{},token);if(alive)setBrainProfile(await r.json())}catch{if(alive)setBrainProfile({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0})}})();return()=>{alive=false}},[token,online,gateway,history.length]);
  function snapshot(){setUndoStack(s=>[...s,clips].slice(-30));setRedoStack([])}
  function replaceClips(next){snapshot();setClips(next)}
@@ -798,6 +798,7 @@ async function removeBackground(){
     </section>
     <section className="settingsSection">
       <div className="settingsSectionHead"><div><b>Account &amp; credits</b><span>{token?'Signed in':'Sign in to generate and keep account-backed history and credits.'}</span></div></div>
+      {token&&storage&&<div className="storageMeter"><div><span>Storage</span><strong>{storage.used_mb} / {storage.limit_mb} MB</strong></div><div className="storageBar"><i style={{width:(Math.min(100,Number(storage.percent||0))+"%")}}/></div></div>}
       {supabaseConfigured&&token&&<button onClick={signOut}>Sign out</button>}
       {!token&&<button onClick={()=>{setShowSettings(false);setShowAuth(true)}}>Sign in</button>}
       <button onClick={()=>{if(!token){setShowSettings(false);setShowAuth(true);setStatus('Sign in to view credits and billing.');return}setShowSettings(false);setNav('Billing');setMobileInspectorOpen(true)}}>Open Credits &amp; Billing</button>
@@ -826,7 +827,7 @@ async function removeBackground(){
     onAuthenticated={(accessToken)=>{setToken(accessToken);setShowAuth(false);}}
     onClose={()=>setShowAuth(false)}
   />}
-  <div className="mobileNav">{NAV.map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>{setNav(n);setMobileInspectorOpen(true)}}>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</button>)}</div>
+  <div className="mobileNav">{[...NAV,['Projects','']].map(([n])=><button key={n} className={nav===n?'active':''} onClick={()=>{setNav(n);setMobileInspectorOpen(true)}}>{n==='Media'?'Assets':n==='Effects'?'Edit':n}</button>)}</div>
  </div>
 }
 
