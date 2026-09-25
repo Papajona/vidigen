@@ -1,7 +1,6 @@
 package ai.vidigen.studio
 
 import android.net.Uri
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.Composition
@@ -90,16 +89,13 @@ class RenderEnginePlugin : Plugin() {
         // LATER Media3 release than 1.5.1 (the version pinned in app/build.gradle) —
         // confirmed by the "Unresolved reference" errors in kotlin-error.txt. This
         // Builder-based form is documented across a much wider range of Media3 versions.
-        val videoSequence = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO))
-            .addItems(editedItems)
-            .build()
+        val videoSequence = EditedMediaItemSequence.Builder(editedItems).build()
         val sequences = mutableListOf(videoSequence)
 
         val audioUri = project.optString("backgroundAudioUri", "")
         if (audioUri.isNotBlank()) {
             val audioItem = EditedMediaItem.Builder(MediaItem.fromUri(audioUri)).build()
-            val audioSequence = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO))
-                .addItem(audioItem)
+            val audioSequence = EditedMediaItemSequence.Builder(mutableListOf(audioItem))
                 .setIsLooping(true)
                 .build()
             sequences.add(audioSequence)
