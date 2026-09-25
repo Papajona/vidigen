@@ -2635,3 +2635,13 @@ button,select,textarea,input{outline:none}
   .effectsInline{grid-template-columns:1fr 1fr 1fr}
   .effectsActions button{flex:1 1 auto}
 }
+
+/* Final mobile navigation hierarchy: five primary destinations on the bottom rail.
+   Account menu remains the home for Credits/Billing and Settings. */
+.mobileProjectItem{display:none!important}
+@media(max-width:700px){
+  .railUtilities{display:none!important}
+  .mobileProjectItem{display:grid!important}
+  .railGroup{width:100%!important}
+  .railGroup .railItem{min-width:50px!important;width:50px!important;flex:1 1 0!important}
+}
