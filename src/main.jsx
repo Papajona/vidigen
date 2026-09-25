@@ -166,7 +166,7 @@ function App(){
  const [billing,setBilling]=useState(null),[billingBusy,setBillingBusy]=useState(false);
  const [generating,setGenerating]=useState(false),[history,setHistory]=useState(()=>read('vidigen_learning_history',[]));
  const [projects,setProjects]=useState(()=>read('vidigen_projects',[]));
- const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]));
+ const [clips,setClips]=useState(()=>read('vidigen_timeline_v12',[]).filter(c=>c&&typeof c==='object'&&!String(c.src||'').startsWith('blob:')));
  const [activeId,setActiveId]=useState(()=>read('vidigen_active_clip',null));
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
  const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false),[accountMenuOpen,setAccountMenuOpen]=useState(false),[mobileInspectorOpen,setMobileInspectorOpen]=useState(()=>typeof window!=='undefined'&&window.matchMedia?.('(max-width: 700px)').matches);
@@ -175,7 +175,7 @@ function App(){
  const [generationSource,setGenerationSource]=useState(null);
  const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
  const [captions,setCaptions]=useState(()=>read('vidigen_captions',[])),[captioning,setCaptioning]=useState(false),[captionStyle,setCaptionStyle]=useState('Bold');
- const [audio,setAudio]=useState(()=>read('vidigen_audio',null)),[recording,setRecording]=useState(false);
+ const [audio,setAudio]=useState(()=>{const saved=read('vidigen_audio',null);return saved&&typeof saved==='object'&&/^https?:\/\//.test(String(saved.url||''))?{name:saved.name||'Audio',url:saved.url}:null}),[recording,setRecording]=useState(false);
  const [overlay,setOverlay]=useState({text:'',size:42,x:50,y:82,bold:true});
  const [aiCommand,setAiCommand]=useState('');
  const [commandBusy,setCommandBusy]=useState(false);
@@ -521,13 +521,67 @@ async function removeBackground(){
  }
  async function runAICommand(){if(!aiCommand.trim())return;setCommandBusy(true);setStatus('AI Editor is translating your instruction…');try{const r=await gatewayFetch(gateway,'/api/edit-plan',{method:'POST',body:JSON.stringify({command:aiCommand,clips:clips.map(c=>({id:c.id,title:c.title,duration:c.duration,track:c.track,trimStart:c.trimStart,trimEnd:c.trimEnd})),ratio})},token);const plan=await r.json();if(plan.operations?.length){applyOperations(plan.operations);setStatus(`${plan.engine==='groq'?'Groq':'Keyword'} editor applied ${plan.operations.length} timeline operation${plan.operations.length>1?'s':''}.`)}else setStatus('No safe timeline change was identified.');}catch{const q=aiCommand.toLowerCase();if(q.includes('delete')&&activeClip){deleteClip();setStatus('AI Editor deleted the selected clip.')}else if(q.includes('duplicate')&&activeClip){duplicateClip();setStatus('AI Editor duplicated the selected clip.')}else if(q.includes('split')&&activeClip){splitClip()}else setStatus('AI Editor needs the gateway edit planner for this instruction.')}finally{setCommandBusy(false);setAiCommand('')}}
  function applyOperations(ops){let next=[...clips];for(const op of ops){const i=next.findIndex(c=>c.id===op.clipId);if(op.type==='delete'&&i>=0)next.splice(i,1);else if(op.type==='duplicate'&&i>=0)next.splice(i+1,0,{...next[i],id:`clip-${Date.now()}-${i}`,title:`${next[i].title||'Clip'} copy`});else if(op.type==='trim'&&i>=0)next[i]={...next[i],trimStart:Number(op.trimStart??next[i].trimStart),trimEnd:Number(op.trimEnd??next[i].trimEnd)};else if(op.type==='speed'&&i>=0)next[i]={...next[i],speed:Number(op.value)};else if(op.type==='volume'&&i>=0)next[i]={...next[i],volume:Number(op.value)};else if(op.type==='split'&&i>=0){const c=next[i],cut=(Number(c.trimStart||0)+Number(c.trimEnd??c.duration??5))/2;next.splice(i,1,{...c,id:`clip-${Date.now()}-${i}a`,trimEnd:cut,title:`${c.title||'Clip'} A`},{...c,id:`clip-${Date.now()}-${i}b`,trimStart:cut,title:`${c.title||'Clip'} B`})}else if(op.type==='keyframe'&&i>=0)next[i]={...next[i],keyframes:[...(next[i].keyframes||[]),op.keyframe]}}replaceClips(next)}
- async function transcribe(){if(!audio?.blob&&!audio?.file&&!activeClip?.src){setStatus('Add audio or select a video clip first.');return}setCaptioning(true);setStatus('Transcribing audio…');try{let f=audio?.file||audio?.blob;let name=audio?.name||'audio.webm';if(!f&&activeClip?.src){const resp=await fetch(activeClip.src);if(!resp.ok)throw new Error('Could not read the selected video for captions.');f=await resp.blob();name=activeClip.title||'selected-video.mp4'}const fd=new FormData();fd.append('file',f,name);const data=await (await gatewayFetch(gateway,'/api/captions',{method:'POST',body:fd},token)).json();setCaptions(data.segments||[]);setStatus(String((data.segments||[]).length)+' caption segments created.')}catch(e){setStatus(e.message)}finally{setCaptioning(false)}}
- function importAudio(file){if(!file)return;const url=URL.createObjectURL(file);setAudio({name:file.name,url,file});setStatus(`${file.name} added to audio track.`)}
- function startRecording(){if(!navigator.mediaDevices?.getUserMedia){setStatus('Microphone recording is unavailable on this device/browser.');return}navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{const r=new MediaRecorder(stream);chunks.current=[];r.ondataavailable=e=>e.data.size&&chunks.current.push(e.data);r.onstop=()=>{const blob=new Blob(chunks.current,{type:'audio/webm'});setAudio({name:'Voiceover recording.webm',url:URL.createObjectURL(blob),blob});stream.getTracks().forEach(t=>t.stop());setStatus('Voiceover recording added.')};recorder.current=r;r.start();setRecording(true);setStatus('Recording voiceover…')}).catch(e=>setStatus(`Microphone error: ${e.message}`))}
+ async function transcribe(){
+   if(!audio?.blob&&!audio?.file&&!audio?.url&&!activeClip?.src){setStatus('Add audio or select a video clip first.');return}
+   if(!token){setShowAuth(true);setStatus('Sign in to create captions.');return}
+   setCaptioning(true);setStatus('Transcribing audio…');
+   try{
+     let f=audio?.file||audio?.blob;let name=audio?.name||'audio.webm';
+     if(!f&&audio?.url){const resp=await fetch(audio.url);if(!resp.ok)throw new Error('Could not read the saved audio.');f=await resp.blob()}
+     if(!f&&activeClip?.src){const resp=await fetch(activeClip.src);if(!resp.ok)throw new Error('Could not read the selected video for captions.');f=await resp.blob();name=activeClip.title||'selected-video.mp4'}
+     const fd=new FormData();fd.append('file',f,name);
+     const data=await (await gatewayFetch(gateway,'/api/captions',{method:'POST',body:fd},token)).json();
+     setCaptions(data.segments||[]);setStatus(String((data.segments||[]).length)+' caption segments created.')
+   }catch(e){setStatus(e.message)}finally{setCaptioning(false)}
+ }
+ function importAudio(file){
+   if(!file)return;
+   if(!token){setShowAuth(true);setStatus('Sign in to save audio to your project.');return}
+   if(!file.type.startsWith('audio/')){setStatus('Choose an audio file.');return}
+   setStatus('Saving audio to your project…');
+   try{
+     const key='audio/import-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+     const reg=await uploadPersistentAsset(file,key,'audio',file.name);
+     setAudio({name:file.name,url:reg.output_url});
+     setStatus(file.name+' added to audio track and saved.');
+   }catch(e){setStatus('Audio import failed: '+e.message)}
+ }
+ function startRecording(){
+   if(!token){setShowAuth(true);setStatus('Sign in to save a voiceover recording.');return}
+   if(!navigator.mediaDevices?.getUserMedia){setStatus('Microphone recording is unavailable on this device/browser.');return}
+   navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+     const r=new MediaRecorder(stream);chunks.current=[];
+     r.ondataavailable=e=>e.data.size&&chunks.current.push(e.data);
+     r.onstop=async()=>{
+       const blob=new Blob(chunks.current,{type:'audio/webm'});
+       stream.getTracks().forEach(t=>t.stop());
+       setStatus('Saving voiceover recording…');
+       try{
+         const key='audio/recording-'+Date.now()+'.webm';
+         const reg=await uploadPersistentAsset(blob,key,'audio','Voiceover recording.webm');
+         setAudio({name:'Voiceover recording.webm',url:reg.output_url});
+         setStatus('Voiceover recording added and saved.');
+       }catch(e){setStatus('Voiceover save failed: '+e.message)}
+     };
+     recorder.current=r;r.start();setRecording(true);setStatus('Recording voiceover…');
+   }).catch(e=>setStatus('Microphone error: '+e.message))
+ }
  function stopRecording(){recorder.current?.stop();setRecording(false)}
  function downloadSrt(){if(!captions.length){setStatus('Create captions first.');return}const fmt=t=>{const ms=Math.round(t*1000),h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000),z=ms%1000;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(z).padStart(3,'0')}`};const text=captions.map((c,i)=>`${i+1}\n${fmt(c.start)} --> ${fmt(c.end)}\n${c.text}\n`).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download='vidigen-captions.srt';a.click()}
  async function rate(n){if(!history.length){setStatus('Generate a result before rating it.');return}const latest=history[0];setHistory(h=>h.map((x,i)=>i===0?{...x,rating:n}:x));try{if(latest.jobId&&token){await gatewayFetch(gateway,'/api/feedback',{method:'POST',body:JSON.stringify({job_id:latest.jobId,rating:n,accepted:n>=4,signals:{tags:latest.tags||[],mode:latest.mode,model:latest.model}})},token);const rp=await gatewayFetch(gateway,'/api/brain/profile',{},token);setBrainProfile(await rp.json());setStatus(`Feedback saved • Brain updated (${n}/5).`);return}}catch{}setStatus(`Feedback saved locally: ${n}/5.`)}
  function addOverlay(){if(!activeClip||!overlay.text.trim())return;patchClip({overlay:{...overlay}});setStatus('Text overlay attached to selected clip.')}
+ async function uploadPersistentAsset(blob,objectKey,kind,name){
+   const mime=blob?.type||'application/octet-stream';
+   const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:objectKey,content_type:mime})},token);
+   const signed=await presignRes.json().catch(()=>({}));
+   if(!presignRes.ok||!signed.upload_url||!signed.cdn_url) throw new Error(signed.detail||'Cloud storage is not ready for this upload.');
+   const put=await fetch(signed.upload_url,{method:'PUT',body:blob,headers:{'Content-Type':mime}});
+   if(!put.ok) throw new Error('Cloud storage upload failed.');
+   const regRes=await gatewayFetch(gateway,'/api/r2-register',{method:'POST',body:JSON.stringify({object_key:objectKey,kind,name:name||null})},token);
+   const reg=await regRes.json().catch(()=>({}));
+   if(!regRes.ok||!reg.output_url) throw new Error(reg.detail||'The uploaded media could not be registered to your account.');
+   return reg;
+ }
  async function uploadBlobForRender(blob,objectKey,mime){
    const presignRes=await gatewayFetch(gateway,'/api/r2-presign',{method:'POST',body:JSON.stringify({object_key:objectKey,content_type:mime||'application/octet-stream'})},token)
    const signed=await presignRes.json(); if(!signed.upload_url||!signed.cdn_url) throw new Error('Durable R2 storage is required for browser rendering.')
@@ -679,66 +733,23 @@ async function removeBackground(){
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
     <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
-</>}>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={e=>{const f=e.target.files?.[0];if(f){const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
+</>}>}{nav==='Media'&&<div className="sectionCard"><b>Media library</b><p>Import your own production footage or images into the timeline.</p><input type="file" accept="video/*,image/*" onChange={async e=>{
+ const f=e.target.files?.[0];e.target.value='';
+ if(!f)return;
+ if(!token){setShowAuth(true);setStatus('Sign in to save production media to your project.');return}
+ const mediaType=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':null;
  if(!mediaType){setStatus('Only image and video files are supported.');return}
- const c={id:`media-\${Date.now()}`,title:f.name,kind:'Imported media',src:URL.createObjectURL(f),track:'Video',duration:5,mediaType,...DEFAULT_CLIP};replaceClips([...clips,c]);setActiveId(c.id);copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{})}}}/>{clips.length?<div className="mediaImported"><b>{clips.length} production asset(s) in this project</b><small>Assets are project-scoped and come only from this project or its AI generation jobs.</small></div>:<div className="emptyState"><b>No media imported yet</b><span>Upload production footage or generate new assets with AI Director.</span></div>}</div>}
-    {nav==='Effects'&&<div className="effectsPanel">
-      <div className="sectionCard">
-        <b>Edit selected asset</b>
-        <p>{activeClip?activeClip.title||'Selected asset':'Select an asset from the timeline or Production assets below.'}</p>
-        {!activeClip&&<div className="emptyState"><b>No asset selected</b><span>Choose a clip to unlock editing tools.</span></div>}
-        {activeClip&&<div className="effectsActions">
-          <button onClick={duplicateClip}>Duplicate</button>
-          <button onClick={splitClip}>Split</button>
-          <button className="danger" onClick={deleteClip}>Delete</button>
-        </div>}
-      </div>
-      {activeClip&&<div className="sectionCard">
-        <b>Media tools</b>
-        <div className="effectsActions">
-          {isImageMedia(activeClip)&&<button disabled={enhancingPhoto||!!(featureHealth&&!featureHealth.photo_enhance)} onClick={enhancePhoto}>{enhancingPhoto?'Enhancing…':'Enhance photo'}</button>}
-          {isImageMedia(activeClip)&&<button disabled={croppingPhoto} onClick={cropPhoto}>{croppingPhoto?'Cropping…':'Crop photo'}</button>}
-          {isImageMedia(activeClip)&&<button onClick={downloadPhoto}>Export photo</button>}
-          <button disabled={bgRemoving||!!(featureHealth&&!featureHealth.background_remove)} onClick={removeBackground}>{bgRemoving?'Removing background…':'Remove background'}</button>
-          {!isImageMedia(activeClip)&&<button disabled={reframing||!!(featureHealth&&!featureHealth.auto_reframe)} onClick={autoReframe}>{reframing?'Reframing…':'Auto reframe'}</button>}
-        </div>
-        {isImageMedia(activeClip)&&<label>Crop aspect
-          <select value={cropAspect} onChange={e=>setCropAspect(e.target.value)}><option>Original</option>{RATIOS.filter(x=>x!=='21:9').map(x=><option key={x}>{x}</option>)}</select>
-        </label>}
-      </div>}
-      {activeClip&&<div className="sectionCard">
-        <b>Adjustments</b>
-        <div className="effectsControlGrid">
-          <label>Speed <input type="range" min="0.25" max="4" step="0.05" value={editor.speed} onChange={e=>patchClip({speed:Number(e.target.value)})}/><span>{Number(editor.speed).toFixed(2)}×</span></label>
-          <label>Volume <input type="range" min="0" max="2" step="0.05" value={editor.volume} onChange={e=>patchClip({volume:Number(e.target.value)})}/><span>{Math.round(Number(editor.volume)*100)}%</span></label>
-          <label>Brightness <input type="range" min="50" max="150" value={editor.brightness} onChange={e=>patchClip({brightness:Number(e.target.value)})}/><span>{editor.brightness}%</span></label>
-          <label>Contrast <input type="range" min="50" max="150" value={editor.contrast} onChange={e=>patchClip({contrast:Number(e.target.value)})}/><span>{editor.contrast}%</span></label>
-          <label>Saturation <input type="range" min="0" max="200" value={editor.saturation} onChange={e=>patchClip({saturation:Number(e.target.value)})}/><span>{editor.saturation}%</span></label>
-          <label>Blur <input type="range" min="0" max="12" step="0.5" value={editor.blur} onChange={e=>patchClip({blur:Number(e.target.value)})}/><span>{editor.blur}px</span></label>
-          <label>Rotation <input type="range" min="-180" max="180" value={editor.rotation} onChange={e=>patchClip({rotation:Number(e.target.value)})}/><span>{editor.rotation}°</span></label>
-          <label>Scale <input type="range" min="50" max="150" value={editor.scale} onChange={e=>patchClip({scale:Number(e.target.value)})}/><span>{editor.scale}%</span></label>
-          <label>Opacity <input type="range" min="0" max="100" value={editor.opacity} onChange={e=>patchClip({opacity:Number(e.target.value)})}/><span>{editor.opacity}%</span></label>
-        </div>
-        <div className="effectsActions"><button onClick={()=>patchClip({...DEFAULT_CLIP,overlay:activeClip.overlay||null})}>Reset adjustments</button></div>
-      </div>}
-      {activeClip&&<div className="sectionCard">
-        <b>Text overlay</b>
-        <label>Text <input value={overlay.text} onChange={e=>setOverlay(o=>({...o,text:e.target.value}))} placeholder="Add a title or CTA"/></label>
-        <div className="effectsInline">
-          <label>Size <input type="number" min="8" max="160" value={overlay.size} onChange={e=>setOverlay(o=>({...o,size:Number(e.target.value)||42}))}/></label>
-          <label>X <input type="number" min="0" max="100" value={overlay.x} onChange={e=>setOverlay(o=>({...o,x:Number(e.target.value)||0}))}/></label>
-          <label>Y <input type="number" min="0" max="100" value={overlay.y} onChange={e=>setOverlay(o=>({...o,y:Number(e.target.value)||0}))}/></label>
-        </div>
-        <div className="effectsActions"><button onClick={addOverlay}>Attach overlay</button><button onClick={()=>patchClip({overlay:null})}>Remove overlay</button></div>
-      </div>}
-      {activeClip&&<div className="sectionCard">
-        <b>AI Editor</b>
-        <p>Describe a safe timeline change in plain language.</p>
-        <textarea value={aiCommand} onChange={e=>setAiCommand(e.target.value)} placeholder="e.g. trim this clip to 3 seconds"/>
-        <button disabled={commandBusy||!aiCommand.trim()} onClick={runAICommand}>{commandBusy?'Applying…':'Apply AI edit'}</button>
-      </div>}
-    </div>}
-    {nav==='Captions'&&<><div className="sectionCard"><b>Caption studio</b><p>{captions.length?`${captions.length} timed segments ready.`:(activeClip?'Select Auto captions to transcribe this clip.':'Add or select media to create captions.')}</p><button onClick={transcribe} disabled={(!audio&&!activeClip)||captioning}>{captioning?'Transcribing…':audio?'Transcribe audio':'Transcribe selected video'}</button><button onClick={downloadSrt} disabled={!captions.length}>Export SRT</button><label>Style</label><select value={captionStyle} onChange={e=>setCaptionStyle(e.target.value)}><option>Bold</option><option>Clean</option><option>Minimal</option></select></div><div className="captionList">{captions.slice(0,40).map((c,i)=><div key={i}><time>{c.start.toFixed(2)}s</time><span>{c.text}</span></div>)}</div></>}
+ if(f.size>250*1024*1024){setStatus('Media files are limited to 250 MB.');return}
+ setStatus('Saving media to your project…');
+ try{
+   const key='media/import-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+   const reg=await uploadPersistentAsset(f,key,mediaType,f.name);
+   const c={id:'media-'+Date.now(),title:f.name,kind:'Imported media',src:reg.output_url,track:'Video',duration:5,mediaType,...DEFAULT_CLIP};
+   replaceClips([...clips,c]);setActiveId(c.id);
+   copyFileToNativeStorage(f).then(nativeUri=>{if(nativeUri)patchClipById(c.id,{nativeUri})}).catch(()=>{});
+   setStatus(f.name+' added and saved to your project.');
+ }catch(e){setStatus('Media import failed: '+e.message)}
+}}/>
     {nav==='Billing'&&<div className="sectionCard">
       <b>Vidigen Plans &amp; Credits</b>
       <p>Subscriptions use monthly credits so premium video generations remain cost-controlled. Prices and credit budgets are managed server-side.</p>
