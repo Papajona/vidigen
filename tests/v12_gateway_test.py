@@ -52,6 +52,25 @@ def test_export_plan_is_explicit():
     assert 'Connect a native FFmpeg/MediaCodec worker' in body['message']
 
 
+def test_render_clip_accepts_editor_properties():
+    from gateway.server import RenderClip
+    clip = RenderClip(
+        uri='https://cdn.example/clip.mp4',
+        speed=1.5,
+        volume=0.75,
+        brightness=110,
+        contrast=105,
+        saturation=120,
+        blur=2,
+        rotation=15,
+        scale=90,
+        opacity=80,
+        overlay={'text':'Launch now', 'size':36, 'x':50, 'y':80, 'bold':True},
+    )
+    assert clip.speed == 1.5
+    assert clip.overlay.text == 'Launch now'
+
+
 def test_render_requires_durable_http_sources():
     r = asyncio.run(call('POST', '/api/render', {
         'ratio': '16:9',
