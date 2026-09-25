@@ -64,6 +64,13 @@ export default function CustomerAuthScreen({onAuthenticated, onClose}) {
           options:{emailRedirectTo:window.location.origin}
         });
         if(err) throw err;
+        // Depending on the Supabase email-enumeration setting, an already-registered
+        // address can return without a session instead of a useful error. Treat the
+        // empty identity list as a duplicate-account signal so signup never dead-ends
+        // at a misleading "check your inbox" state.
+        if(!data.session?.access_token && data.user && Array.isArray(data.user.identities) && data.user.identities.length===0){
+          throw new Error('That email is already registered. Try signing in instead.');
+        }
         if(data.session?.access_token){
           onAuthenticated(data.session.access_token);
           return;
