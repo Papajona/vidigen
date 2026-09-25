@@ -353,7 +353,19 @@ function App(){
      const blob=await res.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(activeClip.title||'vidigen-photo').replace(/[^a-z0-9_-]+/gi,'-').toLowerCase()+'.jpg';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);setStatus('Photo exported.');
    }catch(e){setStatus('Photo export failed: '+e.message)}
  }
- async function removeBackground(){
+ async function waitBackgroundRemoval(kind,jobId){
+   const maxPolls=kind==='video'?120:60;
+   for(let i=0;i<maxPolls;i++){
+     await new Promise(resolve=>setTimeout(resolve,3000));
+     const r=await gatewayFetch(gateway,'/api/remove-background/status/'+encodeURIComponent(jobId),{},token);
+     const data=await r.json();
+     if(data.output_url||data.status==='complete') return data;
+     if(data.status==='error') throw new Error(data.error||'Background removal failed.');
+   }
+   throw new Error('Background removal is taking longer than expected. The job may still finish; please retry from the selected clip.');
+ }
+ 
+async function removeBackground(){
    if(!activeClip){setStatus('Select a clip first.');return}
    setBgRemoving(true)
    try{
@@ -370,8 +382,12 @@ function App(){
      const kind=isImageMedia(activeClip)?'image':'video'
      const bgRes=await gatewayFetch(gateway,'/api/remove-background',{method:'POST',body:JSON.stringify({media_url:cdn_url,kind})},token)
      if(!bgRes.ok){const err=await bgRes.json().catch(()=>({}));throw new Error(err.detail||'Background removal failed.')}
-     const result=await bgRes.json()
-     if(!result.output_url){setStatus('Background removal is still processing after the timeout — the source job may still finish on Replicate, but this app has no way to check back in on it yet.');return}
+     let result=await bgRes.json()
+     if(!result.output_url && result.job_id){
+       setStatus('Background removal is still processing… checking the job automatically.')
+       result=await waitBackgroundRemoval(kind,result.job_id)
+     }
+     if(!result.output_url) throw new Error('Background removal completed without an output file.')
      const c={id:`bgremoved-${Date.now()}`,title:`${activeClip.title||'Clip'} (no bg)`,kind:'Background removed',src:result.output_url,track:'Video',mediaType:kind,duration:activeClip.duration||5,...DEFAULT_CLIP}
      replaceClips([...clips,c]);setActiveId(c.id)
      setStatus('Background removed — added as a new clip.')
