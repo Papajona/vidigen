@@ -31,3 +31,12 @@ async def test_analyzer_fallback_and_validation():
         assert data.get('type')
         r = await c.post('/api/generate', headers=headers, json={'prompt':'x','ratio':'bad'})
         assert r.status_code == 422
+
+
+def test_critical_media_routes_are_registered():
+    paths = {getattr(route, 'path', '') for route in app.routes}
+    assert '/api/r2-presign' in paths
+    assert '/api/r2-register' in paths
+    assert '/api/remove-background' in paths
+    assert '/api/remove-background/status/{job_id}' in paths
+    assert '/api/auto-reframe' in paths
