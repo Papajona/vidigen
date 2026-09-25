@@ -2530,3 +2530,21 @@ button,select,textarea,input{outline:none}
 @media(max-width:700px){
   .mobileNav{display:none!important}
 }
+
+
+/* Account menu — always visible from the top-right avatar */
+.accountMenuWrap{position:relative;display:inline-flex;align-items:center}
+.accountAvatar{cursor:pointer;border:1px solid rgba(255,255,255,.14);transition:all .16s ease}
+.accountAvatar.active,.accountAvatar:hover{border-color:rgba(255,255,255,.32);transform:translateY(-1px)}
+.accountMenu{position:absolute;right:0;top:calc(100% + 10px);z-index:1000;width:240px;padding:8px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(20,21,28,.98);box-shadow:0 18px 50px rgba(0,0,0,.42);backdrop-filter:blur(18px)}
+.accountMenuHead{padding:10px 11px 9px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:5px}
+.accountMenuHead b,.accountMenuHead small{display:block}
+.accountMenuHead b{font-size:13px;color:#f5f6fa}
+.accountMenuHead small{font-size:11px;color:rgba(245,246,250,.55);margin-top:3px}
+.accountMenu button{display:flex;width:100%;align-items:center;gap:8px;border:0;background:transparent;color:#eef0f6;text-align:left;border-radius:10px;padding:10px 11px;font:inherit;font-size:13px;cursor:pointer}
+.accountMenu button:hover{background:rgba(255,255,255,.07)}
+.accountMenu .accountSignOut{color:#ffb4b4}
+.accountMenu .accountSignIn{font-weight:700}
+@media (max-width:700px){
+ .accountMenu{position:fixed;right:12px;top:64px;width:min(260px,calc(100vw - 24px))}
+}
