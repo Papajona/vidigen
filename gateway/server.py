@@ -455,9 +455,6 @@ def _clip_video_filter(ratio: str, clip: RenderClip) -> str:
         import math
         radians=float(clip.rotation)*math.pi/180
         filters.append(f'rotate={radians:.8f}:ow=rotw({radians:.8f}):oh=roth({radians:.8f})')
-    # First fit the source into the requested master frame. Scaling is then applied around
-    # the fitted frame so it remains visible in the final export instead of being normalized
-    # away by another force-aspect-ratio operation.
     filters.append(f'scale=w={w}:h={h}:force_original_aspect_ratio=decrease')
     filters.append(f'pad={w}:{h}:(ow-iw)/2:(oh-ih)/2')
     scale_factor=float(clip.scale)/100
@@ -496,10 +493,10 @@ def _run_ffmpeg_render(inputs: list[tuple[str,int,int|None,str,RenderClip]], rat
             else:
                 probe_audio=subprocess.run(['ffprobe','-v','error','-select_streams','a:0','-show_entries','stream=index','-of','csv=p=0',src],capture_output=True,text=True,timeout=30)
                 has_audio=bool(probe_audio.stdout.strip())
-                cmd=['ffmpeg','-y','-ss',str(start_ms/1000.0),'-i',src]
                 audio_filters=_atempo_chain(speed)
                 audio_filters.append(f'volume={float(clip.volume):.4f}')
                 audio_filter=','.join(audio_filters)
+                cmd=['ffmpeg','-y','-ss',str(start_ms/1000.0),'-i',src]
                 if has_audio:
                     cmd += ['-map','0:v:0','-map','0:a:0','-vf',clip_filter,'-filter:a',audio_filter,'-c:v','libx264','-preset','veryfast','-crf','20','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart']
                 else:
