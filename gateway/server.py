@@ -1371,6 +1371,7 @@ async def photo_enhance(req: PhotoEnhanceRequest, request: Request, user=Depends
             from botocore.config import Config as BotoConfig
             s3=boto3.client('s3',endpoint_url=endpoint,aws_access_key_id=access,aws_secret_access_key=secret,config=BotoConfig(signature_version='s3v4'),region_name='auto')
             key=f'users/{uid}/enhanced/{uuid.uuid4().hex}.jpg'
+            await _enforce_storage_capacity(uid, output.stat().st_size)
             s3.upload_file(str(output),bucket,key,ExtraArgs={'ContentType':'image/jpeg'})
             if persistence.enabled():
                 try:
@@ -1404,7 +1405,10 @@ async def remove_background_endpoint(req: RemoveBackgroundRequest, request: Requ
     durable=result.output_url
     uid=(user or {}).get('sub') if isinstance(user,dict) else None
     if result.output_url:
-        durable=await _persist_provider_output(result.output_url, uid, image=req.kind=='image')
+        try:
+            durable=await _persist_provider_output(result.output_url, uid, image=req.kind=='image')
+        except StorageQuotaExceeded as e:
+            raise HTTPException(413, str(e))
     elif result.job_id and uid:
         # Keep the provider prediction associated with the caller so a long-running
         # background-removal job can be polled instead of becoming a dead end.
@@ -1746,6 +1750,7 @@ async def auto_reframe(req: AutoReframeRequest, request: Request, user=Depends(a
         uid = user.get('sub') if isinstance(user, dict) else 'anonymous'
         object_key = f'users/{uid}/reframed/{uuid.uuid4().hex}.mp4'
         try:
+            await _enforce_storage_capacity(user.get('sub'), Path(output_path).stat().st_size)
             s3.upload_file(output_path, bucket, object_key, ExtraArgs={'ContentType': 'video/mp4'})
         except Exception as e:
             raise HTTPException(502, f'Could not upload reframed video: {e}')
@@ -2141,6 +2146,7 @@ async def _persist_provider_output(output_url: str, uid: str | None, *, image: b
             region_name='auto',
         )
         key=f'users/{uid}/generations/{uuid.uuid4().hex}{suffix}'
+        await _enforce_storage_capacity(uid, total)
         await asyncio.to_thread(s3.upload_file, tmp_path, bucket, key, ExtraArgs={'ContentType':content_type})
         return f'{public_base}/{key}'
     except Exception as exc:
