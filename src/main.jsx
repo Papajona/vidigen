@@ -477,7 +477,7 @@ function App(){
        let uri=c.src
        if(uri?.startsWith('blob:')){const blob=await fetch(uri).then(r=>r.blob());uri=await uploadBlobForRender(blob,`renders/source-${c.id}-${Date.now()}`,blob.type||'video/mp4')}
        if(!uri?.startsWith('http')) throw new Error(`Clip ${c.title||c.id} is not renderable until it has a durable HTTP media URL.`)
-       renderClips.push({uri,mediaType:isImageMedia(c)?'image':'video',trimStartMs:Math.round((c.trimStart||0)*1000),trimEndMs:c.trimEnd?Math.round(c.trimEnd*1000):undefined})
+       renderClips.push({uri,mediaType:isImageMedia(c)?'image':'video',trimStartMs:Math.round((c.trimStart||0)*1000),trimEndMs:c.trimEnd?Math.round(c.trimEnd*1000):undefined,speed:Number(c.speed||1),volume:Number(c.volume??1),brightness:Number(c.brightness??100),contrast:Number(c.contrast??100),saturation:Number(c.saturation??100),blur:Number(c.blur||0),rotation:Number(c.rotation||0),scale:Number(c.scale??100),opacity:Number(c.opacity??100),overlay:c.overlay||null})
      }
      let backgroundAudioUri=audio?.url||undefined
      if(backgroundAudioUri?.startsWith('blob:')){const blob=await fetch(backgroundAudioUri).then(r=>r.blob());backgroundAudioUri=await uploadBlobForRender(blob,`renders/audio-${Date.now()}`,blob.type||'audio/webm')}
