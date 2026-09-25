@@ -90,3 +90,17 @@ body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,
  .silkSettings{padding:16px!important}
  .featureHealthGrid{grid-template-columns:1fr!important}
 }
+
+
+/* Feature simplification: keep the editor powerful without turning the rail into a control panel. */
+.editorSectionCompact{margin:10px 0 12px;border:1px solid var(--silk-line);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.018));overflow:hidden}
+.editorSectionCompact>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;cursor:pointer}
+.editorSectionCompact>summary::-webkit-details-marker{display:none}
+.editorSectionCompact>summary span{display:flex;flex-direction:column;gap:3px}
+.editorSectionCompact>summary b{font-size:13px}
+.editorSectionCompact>summary small{color:var(--silk-muted);font-size:11px}
+.editorSectionCompact>summary i{font-style:normal;color:var(--silk-muted)}
+.editorSectionCompactBody{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 10px 10px}
+.compactFeatureCard{margin:0!important;padding:12px!important}
+.compactFeatureCard audio{width:100%;margin-top:8px}
+@media (max-width:900px){.editorSectionCompactBody{grid-template-columns:1fr}}
