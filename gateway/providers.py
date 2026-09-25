@@ -220,7 +220,7 @@ class ReplicateProvider(BaseGenerationProvider):
     def configured(self) -> bool:
         # Image and video models are configured independently.
         self._refresh_capabilities()
-        return bool(self.token and (self.model or os.getenv("REPLICATE_IMAGE_MODEL", "").strip()))
+        return bool(self.token and (self.model or self.image_model))
 
     def supports(self, capability: str) -> bool:
         self._refresh_capabilities()
@@ -228,7 +228,7 @@ class ReplicateProvider(BaseGenerationProvider):
 
     def model_for(self, payload: dict) -> str:
         if _operation_capability(payload.get("mode")) == "image":
-            return os.getenv("REPLICATE_IMAGE_MODEL", self.image_model)
+            return os.getenv("REPLICATE_IMAGE_MODEL", "").strip() or self.image_model
         return os.getenv("REPLICATE_MODEL", self.model)
 
     def prepare(self, payload: dict) -> dict[str, Any]:
