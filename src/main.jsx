@@ -171,7 +171,7 @@ function App(){
  const [memoryOn,setMemoryOn]=useState(()=>localStorage.getItem('vidigen_learning')!=='off');
  const [analysis,setAnalysis]=useState(null),[showBrain,setShowBrain]=useState(false),[showSettings,setShowSettings]=useState(false);
  const [brainProfile,setBrainProfile]=useState({preferred_tags:[],successful_prompts:[],feedback_count:0,learned_outputs:0});
- const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[enhancingPhoto,setEnhancingPhoto]=useState(false),[croppingPhoto,setCroppingPhoto]=useState(false),[cropAspect,setCropAspect]=useState('Original'),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
+ const [showExport,setShowExport]=useState(false),[exportBusy,setExportBusy]=useState(false),[zoom,setZoom]=useState(1),[bgRemoving,setBgRemoving]=useState(false),[enhancingPhoto,setEnhancingPhoto]=useState(false),[croppingPhoto,setCroppingPhoto]=useState(false),[cropAspect,setCropAspect]=useState('1:1'),[reframing,setReframing]=useState(false),[previewTime,setPreviewTime]=useState(0);
  const [generationSource,setGenerationSource]=useState(null);
  const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
  const [captions,setCaptions]=useState(()=>read('vidigen_captions',[])),[captioning,setCaptioning]=useState(false),[captionStyle,setCaptionStyle]=useState('Bold');
