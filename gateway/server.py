@@ -440,21 +440,36 @@ def _atempo_chain(speed: float) -> list[str]:
     return filters
 
 def _clip_video_filter(ratio: str, clip: RenderClip) -> str:
-    filters = [
+    sizes = {'16:9':(1280,720), '9:16':(720,1280), '1:1':(1080,1080), '4:5':(1080,1350), '21:9':(1280,548)}
+    w,h=sizes[ratio]
+    speed=max(0.25,min(4.0,float(clip.speed or 1)))
+    filters=[]
+    if abs(speed-1)>0.001:
+        filters.append(f'setpts=PTS/{speed:.6f}')
+    filters.append(
         f'eq=brightness={(float(clip.brightness)-100)/100:.4f}:contrast={float(clip.contrast)/100:.4f}:saturation={float(clip.saturation)/100:.4f}'
-    ]
+    )
     if clip.blur:
         filters.append(f'boxblur=luma_radius={float(clip.blur):.2f}:luma_power=1')
-    if abs(clip.scale - 100) > 0.01:
-        factor=float(clip.scale)/100
-        filters.append(f'scale=iw*{factor:.4f}:ih*{factor:.4f}')
-    if abs(clip.rotation) > 0.01:
+    if abs(clip.rotation)>0.01:
         import math
         radians=float(clip.rotation)*math.pi/180
         filters.append(f'rotate={radians:.8f}:ow=rotw({radians:.8f}):oh=roth({radians:.8f})')
-    if clip.opacity < 99.99:
-        filters.append(f'colorchannelmixer=aa={float(clip.opacity)/100:.4f}')
-    filters.append(_ratio_filter(ratio))
+    # First fit the source into the requested master frame. Scaling is then applied around
+    # the fitted frame so it remains visible in the final export instead of being normalized
+    # away by another force-aspect-ratio operation.
+    filters.append(f'scale=w={w}:h={h}:force_original_aspect_ratio=decrease')
+    filters.append(f'pad={w}:{h}:(ow-iw)/2:(oh-ih)/2')
+    scale_factor=float(clip.scale)/100
+    if abs(scale_factor-1)>0.001:
+        filters.append(f'scale=w=trunc(iw*{scale_factor:.4f}/2)*2:h=trunc(ih*{scale_factor:.4f}/2)*2')
+        if scale_factor<1:
+            filters.append(f'pad={w}:{h}:(ow-iw)/2:(oh-ih)/2')
+        else:
+            filters.append(f'crop={w}:{h}:(iw-{w})/2:(ih-{h})/2')
+    if clip.opacity<99.99:
+        opacity=max(0.0,min(1.0,float(clip.opacity)/100))
+        filters.append(f"lutrgb=r='r*{opacity:.4f}':g='g*{opacity:.4f}':b='b*{opacity:.4f}'")
     if clip.overlay:
         text=_ffmpeg_escape_drawtext(clip.overlay.text)
         weight=800 if clip.overlay.bold else 500
