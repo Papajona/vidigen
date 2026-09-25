@@ -341,8 +341,8 @@ function App(){
      ctx.drawImage(bitmap,sx,sy,targetW,targetH,0,0,targetW,targetH);bitmap.close?.();
      const out=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not create cropped image.')),'image/jpeg',0.94));
      setStatus('Saving cropped photo…');
-     const cdn=await uploadEditorBlob(out,'edited/crop-'+activeClip.id+'-'+Date.now()+'.jpg');
-     const edited={id:'cropped-'+Date.now(),title:(activeClip.title||'Photo')+' (cropped)',kind:'Cropped photo',src:cdn,track:'Video',mediaType:'image',duration:activeClip.duration||5,...DEFAULT_CLIP};
+     const reg=await uploadPersistentAsset(out,'media/crop-'+activeClip.id+'-'+Date.now()+'.jpg','image',(activeClip.title||'Photo')+' (cropped)');
+     const edited={id:'cropped-'+Date.now(),title:(activeClip.title||'Photo')+' (cropped)',kind:'Cropped photo',src:reg.output_url,track:'Video',mediaType:'image',duration:activeClip.duration||5,...DEFAULT_CLIP};
      replaceClips([...clips,edited]);setActiveId(edited.id);setStatus('Photo cropped to '+cropAspect+'.');
    }catch(e){setStatus('Photo crop failed: '+e.message)}finally{setCroppingPhoto(false)}
  }
