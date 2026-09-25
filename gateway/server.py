@@ -1695,13 +1695,29 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
             503,
             'All configured generation providers failed. Please try again.'
         )
+async def _refund_generation_billing(user_id: str|None, billing_receipt: dict|None, reason: str) -> None:
+    if not user_id or not billing_receipt:
+        return
+    try:
+        from gateway.billing import refund_credits, refund_free_daily_feature
+        charged=int(billing_receipt.get('charged') or 0)
+        if charged:
+            await refund_credits(user_id, charged, reason, {})
+        feature=billing_receipt.get('free_daily_feature')
+        if feature:
+            await refund_free_daily_feature(user_id, feature)
+    except Exception:
+        log.exception('Generation billing refund failed (%s)', reason)
+
     # Local ComfyUI is a video-only last resort. Do not let a local video workflow
     # masquerade as support for Text → Image or source-to-video operations.
     if _operation_capability(req.mode) != 'video':
         raise HTTPException(503, f'No configured provider supports {req.mode}. Configure an image/transform provider in the provider registry.')
     if req.sourceType and req.sourceType != 'video':
         raise HTTPException(400, f'{req.mode} requires a video-capable local workflow.')
-    if not WORKFLOW.exists(): raise HTTPException(503,'workflow_api.json is missing. Export an API-format workflow from ComfyUI.')
+    if not WORKFLOW.exists():
+        await _refund_generation_billing(user_id, billing_receipt, 'local_workflow_missing')
+        raise HTTPException(503,'workflow_api.json is missing. Export an API-format workflow from ComfyUI.')
     billing_receipt=await _bill_generation(user, req)
     request_payload['_billing']=billing_receipt
     workflow=json.loads(WORKFLOW.read_text(encoding='utf-8'))
@@ -1711,13 +1727,15 @@ async def generate(req:Generate,request:Request,user=Depends(auth)):
     async with httpx.AsyncClient(timeout=30,follow_redirects=False) as client:
         try:r=await client.post(f'{COMFY_URL}/prompt',json={'prompt':workflow,'client_id':'vidigen-local'})
         except httpx.HTTPError as e:
-            if user_id and request_payload.get('_billing',{}).get('free_daily_feature'):
-                from gateway.billing import refund_free_daily_feature
-                await refund_free_daily_feature(user_id,request_payload['_billing']['free_daily_feature'])
+            await _refund_generation_billing(user_id, billing_receipt, 'local_comfyui_unavailable')
             raise HTTPException(503,f'ComfyUI unavailable: {e}')
-    if r.status_code>=400: raise HTTPException(r.status_code,'ComfyUI rejected the workflow.')
+    if r.status_code>=400:
+        await _refund_generation_billing(user_id, billing_receipt, 'local_comfyui_rejected')
+        raise HTTPException(r.status_code,'ComfyUI rejected the workflow.')
     data=r.json(); pid=data.get('prompt_id')
-    if not pid or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',str(pid)): raise HTTPException(502,'Invalid prompt ID from ComfyUI')
+    if not pid or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',str(pid)):
+        await _refund_generation_billing(user_id, billing_receipt, 'local_invalid_prompt_id')
+        raise HTTPException(502,'Invalid prompt ID from ComfyUI')
     request_payload['_external_id']=pid
     JOB_CACHE[pid]={'provider':'local','external_id':pid,'user_id':user_id,'request':request_payload}
     job_id=await persistence.create_job(user_id,None,'local','comfyui',request_payload) if user_id and persistence.enabled() else None
