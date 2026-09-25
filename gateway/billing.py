@@ -279,6 +279,17 @@ def build_router(auth_dependency, admin_dependency):
         if event == 'charge.success':
             metadata=data.get('metadata') or {}
             uid=metadata.get('user_id')
+            # Paystack can legitimately retry delivery with a different webhook
+            # event envelope. The event hash alone is therefore not sufficient to
+            # prevent a payment reference from being credited twice.
+            reference=data.get('reference')
+            if persistence.enabled() and reference:
+                prior_payment=await persistence.sb_request(
+                    'GET','payments',
+                    params={'reference':f'eq.{reference}','status':'eq.success','select':'id','limit':'1'}
+                )
+                if prior_payment:
+                    return {'ok':True,'duplicate_payment':True,'reference':reference}
             if metadata.get('type') == 'vidigen_credit_pack':
                 if uid and int(metadata.get('credits') or 0) == 150 and persistence.enabled():
                     await persistence.sb_request('POST','rpc/grant_subscription_credits_atomic',{'p_user_id':uid,'p_amount':150,'p_monthly_allowance':0})
