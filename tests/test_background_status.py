@@ -1,23 +1,41 @@
 import asyncio
+import os
+import time
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
+
+os.environ.setdefault("VIDIGEN_GATEWAY_TOKEN", "test-token")
 
 from gateway import providers
 from gateway import server
 
 
-def test_background_removal_status_returns_processing_for_owned_job():
+@pytest.mark.parametrize(
+    "provider_status, raw, expected_status, expected_error",
+    [
+        ("processing", {}, "processing", None),
+        ("failed", {"error": "Prediction failed"}, "error", "Prediction failed"),
+        ("canceled", None, "error", "Background removal failed."),
+    ],
+)
+def test_background_removal_status_for_owned_job(
+    provider_status, raw, expected_status, expected_error
+):
     job_id = "bg-test-123"
     server.BACKGROUND_JOB_CACHE[job_id] = {
         "user_id": "local-gateway",
         "kind": "image",
-        "created_at": __import__("time").time(),
+        "provider_job_id": "provider-123",
+        "created_at": time.time(),
     }
 
     async def call():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
             return await client.get(
                 f"/api/remove-background/status/{job_id}",
                 headers={"Authorization": "Bearer test-token"},
@@ -26,15 +44,24 @@ def test_background_removal_status_returns_processing_for_owned_job():
     try:
         fake = providers.GenerationResult(
             "replicate-rembg",
-            job_id,
-            "processing",
+            "provider-123",
+            provider_status,
             None,
-            {},
+            raw,
         )
-        with patch.object(providers, "background_status", new=AsyncMock(return_value=fake)):
+        with patch.object(
+            providers, "background_status", new=AsyncMock(return_value=fake)
+        ) as poll:
             response = asyncio.run(call())
+
+        poll.assert_awaited_once_with("provider-123", "image")
         assert response.status_code == 200
-        assert response.json()["status"] == "processing"
-        assert response.json()["job_id"] == job_id
+        body = response.json()
+        assert body["status"] == expected_status
+        assert body["job_id"] == job_id
+        if expected_error is not None:
+            assert body["error"] == expected_error
+        else:
+            assert "error" not in body
     finally:
         server.BACKGROUND_JOB_CACHE.pop(job_id, None)
