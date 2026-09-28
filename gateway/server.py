@@ -3924,4 +3924,74 @@ async def status(prompt_id:str,request:Request,user=Depends(auth)):
                     JOB_CACHE[prompt_id]=new_job
                     if persistence.enabled() and user and user.get('sub'):
                         try:
-                            await persistence.update_job(
+                            await persistence.update_job(                                prompt_id,
+                                provider=fallback_provider,
+                                model=_provider_model(PROVIDERS[fallback_provider], new_request),
+                                status='processing',
+                                request=new_request,
+                                error=None,
+                            )
+                        except Exception:
+                            log.exception('Generation fallback started but persistence update failed')
+                    log.warning(
+                        f'Provider {provider} failed after accepting job {prompt_id}; '
+                        f'continued generation on {fallback_provider}.'
+                    )
+                    return {
+                        'status':'running',
+                        'provider':fallback_provider,
+                        'fallbackUsed':True,
+                        'providerAttempts':new_request['_provider_attempts'],
+                    }
+
+                request_data['_provider_attempts']=attempted
+                error_message=str((result.raw or {}).get('error','Provider failed'))
+                billing_info=request_data.get('_billing') or {}
+                charged=int(billing_info.get('charged') or 0)
+                if not request_data.get('_billing_settled'):
+                    try:
+                        from gateway.billing import refund_credits, refund_free_daily_feature
+                        if user and user.get('sub') and charged:
+                            await refund_credits(user['sub'],charged,'provider_failure',{'job_id':prompt_id,'providers':attempted})
+                        if user and user.get('sub') and billing_info.get('free_daily_feature'):
+                            await refund_free_daily_feature(user['sub'],billing_info['free_daily_feature'])
+                        request_data['_billing_settled']=True
+                        job['request']=request_data
+                        JOB_CACHE[prompt_id]=job
+                    except Exception:
+                        log.exception('Credit/daily-usage refund failed after all provider attempts failed')
+                if persistence.enabled() and user and user.get('sub'):
+                    await persistence.update_job(
+                        prompt_id,
+                        status='failed',
+                        error=f'All configured providers failed. {error_message}',
+                        request=request_data,
+                    )
+                return {
+                    'status':'error',
+                    'error':'All configured generation providers failed. Any credits charged have been refunded.'
+                }
+            return {'status':'running','provider':provider}
+        except ProviderError as e: raise HTTPException(502,str(e))
+    async with httpx.AsyncClient(timeout=20,follow_redirects=False) as client:
+        try:r=await client.get(f'{COMFY_URL}/history/{external}')
+        except httpx.HTTPError as e: raise HTTPException(503,f'ComfyUI unavailable: {e}')
+    if r.status_code==404:return {'status':'running'}
+    if r.status_code>=400:raise HTTPException(r.status_code,'ComfyUI history request failed')
+    history=r.json().get(external)
+    if not history:return {'status':'running'}
+    if history.get('status',{}).get('status_str')=='error':return {'status':'error','error':'ComfyUI reported a generation error'}
+    for node in history.get('outputs',{}).values():
+        if not isinstance(node,dict): continue
+        for key in ('gifs','videos','images'):
+            for item in node.get(key,[]) if isinstance(node.get(key,[]),list) else []:
+                if not isinstance(item,dict): continue
+                filename=item.get('filename')
+                if filename and (key in ('gifs','videos') or str(filename).lower().endswith(('.mp4','.webm','.gif'))):
+                    cap=secrets.token_urlsafe(32); OUTPUT_CAPS[cap]={'filename':filename,'subfolder':item.get('subfolder',''),'type':item.get('type','output'),'expires':time.time()+OUTPUT_CAP_TTL}
+                    if persistence.enabled() and user and user.get('sub'):
+                        local_url=str(request.base_url).rstrip('/')+f'/api/output?cap={cap}'
+                        await persistence.update_job(prompt_id,status='completed',completed_at=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                        asyncio.create_task(_auto_learn_output(user,prompt_id,local_url,'local'))
+                    return {'status':'complete','videoUrl':str(request.base_url).rstrip('/')+f'/api/output?cap={cap}'}
+    return {'status':'running'}
