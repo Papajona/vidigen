@@ -763,7 +763,7 @@ async function removeBackground(){
     <span>{generating?'Generating '+progress+'%':'Generate '+(mode==='Text → Image'?'image':'video')}</span>
     <small>{generating?'Creating and placing your result…':'One click. The result lands on your timeline.'}</small>
   </button>
-</>}>}{nav==='Media'&&<div className="sectionCard">
+</>}{nav==='Media'&&<div className="sectionCard">
       <b>Media library</b>
       <p>Import your own production footage or images into the timeline.</p>
       <input type="file" accept="video/*,image/*" onChange={async e=>{
