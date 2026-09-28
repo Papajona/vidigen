@@ -2485,7 +2485,6 @@ app.include_router(create_agent_router(auth))
 
 from gateway.backup import build_router as build_backup_router
 app.include_router(build_backup_router(require_admin))
-)
 
 @app.get('/api/storage/me')
 async def storage_me(request: Request, user=Depends(auth)):
