@@ -12,7 +12,9 @@ page.on('console', msg => {
 });
 page.on('pageerror', err => consoleErrors.push(String(err)));
 
-const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.waitForLoadState('load', { timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(5000);
 if (!response || !response.ok()) throw new Error(`Frontend returned HTTP ${response?.status()}`);
 
 await page.screenshot({ path: 'vidigen-production.png', fullPage: true });
