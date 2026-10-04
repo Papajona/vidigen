@@ -77,7 +77,8 @@ jobs:
       - run: node .github/ci/browser-smoke.mjs
         env:
           VIDIGEN_URL: https://www.vidigen.online/
-      - uses: actions/upload-artifact@v4
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: vidigen-production-browser-check
           path: |
