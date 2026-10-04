@@ -64,10 +64,31 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+  browser:
+    name: Production browser + WCAG AA smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0 @axe-core/playwright@4.10.2
+      - run: npx playwright install --with-deps chromium
+      - run: node .github/ci/browser-smoke.mjs
+        env:
+          VIDIGEN_URL: https://www.vidigen.online/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidigen-production-browser-check
+          path: |
+            vidigen-production.png
+            axe-results.json
+          if-no-files-found: error
+
   production-smoke:
     name: Production HTTP smoke checks
     runs-on: ubuntu-latest
-    needs: [frontend, gateway, android]
+    needs: [frontend, gateway, android, browser]
     steps:
       - name: Check frontend
         run: curl --fail --silent --show-error --retry 8 --retry-delay 3 https://www.vidigen.online/ >/dev/null
