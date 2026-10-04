@@ -2669,6 +2669,7 @@ button,select,textarea,input{outline:none}
    No gradients/images are used by this surface layer. */
 :root{
   color-scheme:dark;
+  --surface-system-version:'v21-20261004';
   --surface-app:#0b0e13;
   --surface-section:#10141a;
   --surface-panel:#151a22;
