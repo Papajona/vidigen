@@ -2661,3 +2661,156 @@ button,select,textarea,input{outline:none}
   .storageMeter>div:first-child{font-size:8px}
   .storageMeter strong{font-size:9px}
 }
+
+
+/* V21 — Surface system only.
+   Purpose: establish explicit elevation/surface tokens without changing layout,
+   component behavior, routing, API calls, persistence, or business logic.
+   No gradients/images are used by this surface layer. */
+:root{
+  color-scheme:dark;
+  --surface-app:#0b0e13;
+  --surface-section:#10141a;
+  --surface-panel:#151a22;
+  --surface-raised:#1b212b;
+  --surface-modal:#202733;
+  --surface-popover:#242b36;
+  --surface-input:#0e1319;
+  --surface-scrim:rgba(5,8,12,.72);
+  --surface-overlay:rgba(5,8,12,.48);
+  --surface-border:#36404c;
+  --surface-border-strong:#4b5868;
+  --surface-divider:#2c3541;
+  --surface-text:#f1f5f9;
+  --surface-text-muted:#aab4c2;
+  --surface-text-disabled:#667384;
+  --surface-focus:#9aa8ff;
+  --surface-selected:#293348;
+  --surface-hover:#202733;
+  --surface-active:#2a3444;
+  --surface-error:#3a2025;
+  --surface-loading:#171d26;
+  --surface-empty:#121820;
+  --surface-shadow-1:0 4px 14px rgba(2,6,12,.18);
+  --surface-shadow-2:0 12px 32px rgba(2,6,12,.28);
+  --surface-shadow-3:0 24px 64px rgba(2,6,12,.40);
+}
+[data-theme="light"]{
+  color-scheme:light;
+  --surface-app:#f7f9fc;
+  --surface-section:#eef2f7;
+  --surface-panel:#e5eaf1;
+  --surface-raised:#dde4ed;
+  --surface-modal:#d5dde8;
+  --surface-popover:#ffffff;
+  --surface-input:#ffffff;
+  --surface-scrim:rgba(15,23,42,.42);
+  --surface-overlay:rgba(15,23,42,.24);
+  --surface-border:#b8c3d1;
+  --surface-border-strong:#93a0b2;
+  --surface-divider:#cbd4df;
+  --surface-text:#17202b;
+  --surface-text-muted:#536173;
+  --surface-text-disabled:#7b8796;
+  --surface-focus:#5265d8;
+  --surface-selected:#d9e0f3;
+  --surface-hover:#dce3eb;
+  --surface-active:#cfd8e4;
+  --surface-error:#f6dfe2;
+  --surface-loading:#e8edf3;
+  --surface-empty:#f0f3f7;
+  --surface-shadow-1:0 4px 14px rgba(15,23,42,.10);
+  --surface-shadow-2:0 12px 32px rgba(15,23,42,.14);
+  --surface-shadow-3:0 24px 64px rgba(15,23,42,.20);
+}
+
+/* Base/background hierarchy */
+html,body,.app{background:var(--surface-app)!important;color:var(--surface-text)!important}
+.topbar,.rail,.timelinePanel,.bottom{background:var(--surface-section)!important}
+.center{background:var(--surface-app)!important}
+.inspector,.sectionCard,.settingsSection,.card,.featureHealthPanel{background:var(--surface-panel)!important}
+.mode,.previewActions button,.timelineButtons button,.promptActions button,.settingsTabs button,
+.accountMenu button,.transport button,.textButton,.promptChips button{background:var(--surface-raised)!important}
+.modal,.settingsModal,.authShell{background:var(--surface-modal)!important}
+.accountMenu,.popover,.dropdown,.tooltip{background:var(--surface-popover)!important}
+.prompt,.twoFields select,.inspector select,.sectionCard input:not([type=range]),
+.sectionCard textarea,.modal input,.modal select,.quickSettings select,.advancedBody select,
+.aiCommandRow input{background:var(--surface-input)!important}
+
+/* Remove surface gradients/images; hierarchy is expressed by tokens + elevation. */
+.app:before,.topbar:after{display:none!important}
+.topbar,.rail,.center,.previewHeader,.inspector,.inspectorTop,.stage,.transport,
+.timelinePanel,.timelineTop,.sectionCard,.settingsSection,.settingsModal,.modal,
+.authShell,.authBrandPanel,.authFormPanel,.accountMenu,.emptyCanvas,.sourceCard,
+.directorCard,.generationSummary,.silkSummary,.prompt,.mode,.settingsTabs button,
+.quickSettings,.advancedSettings,.advancedBody,.featureHealthPanel{
+  background-image:none!important;
+}
+
+/* Borders/dividers: visible in both themes. */
+.topbar,.rail,.center,.previewHeader,.transport,.timelinePanel,.timelineTop,
+.inspector,.sectionCard,.settingsSection,.settingsModal,.modal,.authShell,
+.accountMenu,.mode,.prompt,.twoFields select,.inspector select,
+.sectionCard input:not([type=range]),.sectionCard textarea,.modal input,.modal select,
+.quickSettings select,.advancedBody select,.sourceDrop,.settingsTabs button{
+  border-color:var(--surface-border)!important;
+}
+.keyframeRow,.captionList,.captionList div,.row,.advancedSettings,.railUtilities,
+.settingsInline,.providerRow,.settingsAdvanced{border-color:var(--surface-divider)!important}
+
+/* Elevation: each level is intentionally distinct. */
+.card,.sectionCard{box-shadow:var(--surface-shadow-1)!important}
+.inspector,.settingsSection{box-shadow:var(--surface-shadow-1)!important}
+.accountMenu,.popover,.dropdown,.tooltip{box-shadow:var(--surface-shadow-2)!important}
+.modal,.settingsModal,.authShell{box-shadow:var(--surface-shadow-3)!important}
+
+/* Interaction states: not color-only. */
+button:hover,.mode:hover,.settingsTabs button:hover,.promptChips button:hover,
+.previewActions button:hover,.timelineButtons button:hover,.accountMenu button:hover{
+  background:var(--surface-hover)!important;
+  border-color:var(--surface-border-strong)!important;
+}
+button:active,.mode:active,.settingsTabs button:active{
+  background:var(--surface-active)!important;
+  transform:translateY(1px);
+}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,
+summary:focus-visible{
+  outline:2px solid var(--surface-focus)!important;
+  outline-offset:2px;
+  border-color:var(--surface-focus)!important;
+}
+.mode.active,.railItem.active,.settingsTabs button.active,.toggle.on{
+  background:var(--surface-selected)!important;
+  border-color:var(--surface-border-strong)!important;
+  box-shadow:inset 0 0 0 2px var(--surface-focus)!important;
+}
+button:disabled,input:disabled,select:disabled,textarea:disabled{
+  background:var(--surface-loading)!important;
+  color:var(--surface-text-disabled)!important;
+  border-color:var(--surface-divider)!important;
+  opacity:.72!important;
+}
+.emptyCanvas,.emptyCanvasContent{background:var(--surface-empty)!important}
+.loading,.skeleton,.isLoading{background:var(--surface-loading)!important}
+.error,.errorState,[role="alert"]{background:var(--surface-error)!important}
+
+/* Overlay/scrim/backdrop */
+.modalBack,.authBackdrop{background:var(--surface-scrim)!important;background-image:none!important}
+.modalBack,.authBackdrop{backdrop-filter:blur(10px)!important}
+
+/* Text/icon contrast on every defined surface. */
+.app,.topbar,.rail,.center,.timelinePanel,.inspector,.sectionCard,.settingsSection,
+.card,.modal,.settingsModal,.authShell,.accountMenu,.mode,.prompt,
+.twoFields select,.inspector select,.sectionCard input:not([type=range]),
+.sectionCard textarea,.modal input,.modal select,.quickSettings select,.advancedBody select{
+  color:var(--surface-text)!important;
+}
+label,.hint,.promptMeta,.analysis span,.sectionCard p,.sectionCard span,
+.settingsSectionHead span,.settingsInline,.providerRow{
+  color:var(--surface-text-muted)!important;
+}
+
+/* Media itself is intentionally near-black: #000 is reserved only for the video
+   viewing surface where black represents actual media/canvas, not UI chrome. */
+.stage,.videoFrame,.videoFrame video{background:#080b10!important}
