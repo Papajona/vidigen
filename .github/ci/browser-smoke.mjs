@@ -19,9 +19,9 @@ for(let attempt=1; attempt<=12; attempt++){
   response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForLoadState('load', { timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  const surfaceMarker = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--surface-app').trim());
-  if(surfaceMarker === '#0b0e13') break;
-  if(attempt === 12) throw new Error(`Deployed surface token not observed; found "${surfaceMarker || 'missing'}".`);
+  const surfaceMarker = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--surface-system-version').trim());
+  if(surfaceMarker.includes('v21-20261004')) break;
+  if(attempt === 12) throw new Error(`Deployed surface system version not observed; found "${surfaceMarker || 'missing'}".`);
   await page.waitForTimeout(5000);
 }
 await page.waitForLoadState('load', { timeout: 30000 }).catch(() => {});
