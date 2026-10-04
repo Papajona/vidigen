@@ -2772,7 +2772,6 @@ button:hover,.mode:hover,.settingsTabs button:hover,.promptChips button:hover,
 }
 button:active,.mode:active,.settingsTabs button:active{
   background:var(--surface-active)!important;
-  transform:translateY(1px);
 }
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,
 summary:focus-visible{
@@ -2814,3 +2813,13 @@ label,.hint,.promptMeta,.analysis span,.sectionCard p,.sectionCard span,
 /* Media itself is intentionally near-black: #000 is reserved only for the video
    viewing surface where black represents actual media/canvas, not UI chrome. */
 .stage,.videoFrame,.videoFrame video{background:#080b10!important}
+
+
+/* Surface contrast completion: interactive labels use the surface text token too. */
+button,.mode,.settingsTabs button,.previewActions button,.timelineButtons button,
+.promptActions button,.accountMenu button,.transport button,.textButton,
+.promptChips button{color:var(--surface-text)!important}
+.timelineButtons button{background:var(--surface-raised)!important;border-color:var(--surface-border)!important}
+
+/* The production browser gate must wait for this marker so verification cannot race
+   the Cloudflare deployment of the same commit. */
