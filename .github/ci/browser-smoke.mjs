@@ -23,6 +23,8 @@ const bodyText = (await page.locator('body').innerText()).trim();
 if (bodyText.length < 100) throw new Error('Production page rendered as effectively blank.');
 if (/Something went wrong|Internal Server Error/i.test(bodyText)) throw new Error('Production page contains an application error state.');
 
+const allInteractive = await page.locator('select, input, textarea, button').evaluateAll(els => els.map(el => ({tag:el.tagName,id:el.id,name:el.getAttribute('name'),aria:el.getAttribute('aria-label'),text:el.textContent?.trim().slice(0,80)})));
+console.log('INTERACTIVE_A11Y', JSON.stringify(allInteractive));
 const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
 fs.writeFileSync('axe-results.json', JSON.stringify(results, null, 2));
 if (results.violations.length) {
