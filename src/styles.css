@@ -2823,3 +2823,17 @@ button,.mode,.settingsTabs button,.previewActions button,.timelineButtons button
 
 /* The production browser gate must wait for this marker so verification cannot race
    the Cloudflare deployment of the same commit. */
+
+
+/* Final surface verification selectors — explicit to prevent legacy timeline rules
+   from lowering contrast after the token layer. */
+.timelinePanel .timelineButtons button{
+  background:#1b212b!important;
+  color:#f1f5f9!important;
+  border-color:#36404c!important;
+}
+.timelinePanel .timelineButtons button:hover{
+  background:#202733!important;
+  color:#f1f5f9!important;
+  border-color:#4b5868!important;
+}
