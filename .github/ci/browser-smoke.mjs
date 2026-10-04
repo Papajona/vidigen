@@ -2,7 +2,8 @@ import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
 
-const url = process.env.VIDIGEN_URL || 'https://www.vidigen.online/';
+const baseUrl = process.env.VIDIGEN_URL || 'https://www.vidigen.online/';
+const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}surface_verify=tokenized-v21`;
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
 const page = await context.newPage();
