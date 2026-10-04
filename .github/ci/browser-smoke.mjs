@@ -4,7 +4,8 @@ import fs from 'node:fs';
 
 const url = process.env.VIDIGEN_URL || 'https://www.vidigen.online/';
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+const page = await context.newPage();
 
 const consoleErrors = [];
 page.on('console', msg => {
@@ -42,4 +43,5 @@ console.log(JSON.stringify({
   consoleErrors: 0
 }, null, 2));
 
+await context.close();
 await browser.close();
