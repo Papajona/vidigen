@@ -1,0 +1,77 @@
+name: Production Verification Gate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: production-verification-main
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Production build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: npm run build
+      - name: High severity dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  gateway:
+    name: Gateway tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r gateway/requirements.txt pytest
+      - run: python -m pytest tests/ -v
+
+  android:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - run: cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidigen-android-debug-gate
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  production-smoke:
+    name: Production HTTP smoke checks
+    runs-on: ubuntu-latest
+    needs: [frontend, gateway, android]
+    steps:
+      - name: Check frontend
+        run: curl --fail --silent --show-error --retry 8 --retry-delay 3 https://www.vidigen.online/ >/dev/null
+      - name: Check API edge
+        run: curl --fail --silent --show-error --retry 8 --retry-delay 3 https://api.vidigen.online/docs >/dev/null
+      - name: Check Cloud Run gateway
+        run: curl --fail --silent --show-error --retry 8 --retry-delay 3 https://vidigen-gateway-8907342947.us-central1.run.app/docs >/dev/null
