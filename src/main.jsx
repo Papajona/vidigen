@@ -743,14 +743,14 @@ async function removeBackground(){
   </div>
   <div className="createStep createStepAfter"><span>03</span><div><label className="sectionLabel">Output</label><small>Format and length.</small></div></div>
   <div className="quickSettings silkQuickSettings">
-    <div><label>Format</label><select value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
-    {mode!=='Text → Image'&&<div><label>Length</label><select value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
+    <div><label htmlFor="output-ratio">Format</label><select id="output-ratio" name="output-ratio" value={ratio} onChange={e=>setRatio(e.target.value)}>{RATIOS.map(x=><option key={x}>{x}</option>)}</select></div>
+    {mode!=='Text → Image'&&<div><label htmlFor="output-duration">Length</label><select id="output-duration" name="output-duration" value={duration} onChange={e=>setDuration(e.target.value)}>{DURATIONS.map(x=><option key={x}>{x}</option>)}</select></div>}
   </div>
   <details className="promptTools silkMore">
     <summary>More options <small>Camera, engine &amp; AI assist</small></summary>
     <div className="promptToolBody silkMoreBody">
-      {mode!=='Text → Image'&&<div className="silkOption"><label>Camera</label><select value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select></div>}
-      <div className="silkOption"><label>Engine</label><select value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></div>
+      {mode!=='Text → Image'&&<div className="silkOption"><label htmlFor="camera-move">Camera</label><select id="camera-move" name="camera-move" value={cameraMove} onChange={e=>setCameraMove(e.target.value)}>{CAMERA_MOVES.map(x=><option key={x}>{x}</option>)}</select></div>}
+      <div className="silkOption"><label htmlFor="generation-engine">Engine</label><select id="generation-engine" name="generation-engine" value={model} onChange={e=>setModel(e.target.value)}>{availableModels.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></div>
       <button onClick={analyze}>Check idea</button><button onClick={improvePrompt}>Improve prompt</button>
     </div>
   </details>
